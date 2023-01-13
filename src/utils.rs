@@ -26,3 +26,8 @@ pub fn offset_to_position(rope: &Rope, offset: usize) -> Option<Position> {
     let column = offset - first_char;
     Some(Position::new(line as u32, column as u32))
 }
+
+pub fn order_to_sort_text(order: usize, len: usize) -> String {
+    // int to string, left padding with zero, e.g., 1 -> "0001"
+    format!("{:0len$}", order, len = len)
+}

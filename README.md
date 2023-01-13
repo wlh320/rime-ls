@@ -32,7 +32,16 @@
 
 -- my rime lsp
 start_rime = function ()
-  local client_id = vim.lsp.start_client({cmd = { '/xxx/xxx/rime_ls' }});
+  local client_id = vim.lsp.start_client({
+    cmd = { '/home/wlh/coding/rime-ls/target/release/rime_ls' },
+    settings = {
+      shared_data_dir = "/usr/share/rime-data",
+      user_data_dir = "/home/wlh/.local/share/rime-ls",
+      log_dir = "/home/wlh/.local/share/rime-ls",
+      max_candidates = 10,
+      trigger_characters = { '>' }, -- not implemented yet
+    },
+  });
   vim.lsp.buf_attach_client(0, client_id)
 end
 
@@ -61,8 +70,7 @@ cmp.setup {
   -- ......
 }
 ```
-
-配置完之後，`:lua start_rime()` 手動開啓 LSP server
+配置完 LSP 和补全插件的可配置项之后，用 `:lua start_rime()` 手動開啓 LSP server
 
 輸入拼音, 就可以看到补全提示
 
@@ -70,7 +78,7 @@ cmp.setup {
 
 - [ ] 實現更多 librime 的功能 (按数字选择, 候选翻页, 部分提交上屏, 特殊字符)
 - [ ] 读 LSP 文档, 继续提升补全的使用体验
-- [ ] 參數可配置 (用户目录, 触发条件, 候选数量)
+- [x] 參數可配置 (用户目录, 触发条件, 候选数量)
 - [ ] 實現一個更好的 librime 的 rust wrapper 庫
 - [ ] 測試其他 LSP clients
 

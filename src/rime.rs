@@ -7,11 +7,7 @@ use std::sync::RwLock;
 /// TODO: make a good rust wrapper
 /// FIXME: maybe String not &str, because of LSP backend lifetime
 #[derive(Debug)]
-pub struct Rime<'t> {
-    shared_data_dir: &'t str,
-    user_data_dir: &'t str,
-    log_dir: &'t str,
-}
+pub struct Rime;
 
 #[derive(Debug)]
 pub struct Candidate {
@@ -20,23 +16,24 @@ pub struct Candidate {
     pub order: usize,
 }
 
-impl<'t> Rime<'t> {
-    pub fn new(shared_data_dir: &'t str, user_data_dir: &'t str, log_dir: &'t str) -> Rime<'t> {
-        Rime {
-            shared_data_dir,
-            user_data_dir,
-            log_dir,
-        }
+impl Rime {
+    pub fn new() -> Self {
+        Rime
     }
 
-    pub fn init(&self) -> Result<(), Box<dyn Error>> {
+    pub fn init(
+        &self,
+        shared_data_dir: &str,
+        user_data_dir: &str,
+        log_dir: &str,
+    ) -> Result<(), Box<dyn Error>> {
         let mut traits: librime::RimeTraits = unsafe { std::mem::zeroed() };
         traits.data_size = std::mem::size_of::<librime::RimeTraits>() as i32; // ?
 
         // set dirs
-        traits.shared_data_dir = CString::new(self.shared_data_dir)?.into_raw();
-        traits.user_data_dir = CString::new(self.user_data_dir)?.into_raw();
-        traits.log_dir = CString::new(self.log_dir)?.into_raw();
+        traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
+        traits.user_data_dir = CString::new(user_data_dir)?.into_raw();
+        traits.log_dir = CString::new(log_dir)?.into_raw();
         traits.min_log_level = 1; // WARN
 
         // set name
@@ -52,7 +49,6 @@ impl<'t> Rime<'t> {
                 librime::RimeJoinMaintenanceThread();
             }
         }
-
         Ok(())
     }
 
@@ -156,15 +152,13 @@ fn test_get_candidates() {
     let user_data_dir = "/home/wlh/.local/share/rime-ls/";
     let log_dir = "/tmp";
     // init
-    let rime_ls = Rime::new(shared_data_dir, user_data_dir, log_dir);
-    rime_ls.init().unwrap();
+    let rime = Rime::new();
+    rime.init(shared_data_dir, user_data_dir, log_dir).unwrap();
     // simulate typing
     let max_candidates = 10;
     let keys = vec![b'w', b'l', b'h'];
-    let cands = rime_ls
-        .get_candidates_from_keys(keys, max_candidates)
-        .unwrap();
+    let cands = rime.get_candidates_from_keys(keys, max_candidates).unwrap();
     assert_eq!(cands.len(), max_candidates);
     // destroy
-    rime_ls.destroy();
+    rime.destroy();
 }
