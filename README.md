@@ -40,12 +40,10 @@ end
 local cmp = require 'cmp'
 local compare = require 'cmp.config.compare'
 cmp.setup {
-  snippet = {
-    expand = function(args)
-      luasnip.lsp_expand(args.body)
-    end,
-  },
+  -- 其他设置 blabla
+  -- ......
 
+  -- 设置排序顺序
   sorting = {
     comparators = {
       compare.sort_text,
@@ -58,27 +56,29 @@ cmp.setup {
       compare.order,
     }
   },
-  -- 其他配置
-  -- xxx
+
+  -- 其他配置 blabla
+  -- ......
 }
 ```
 
-配置完之後，`: lua start_rime()` 手動開啓 LSP server
+配置完之後，`:lua start_rime()` 手動開啓 LSP server
 
-輸入拼音, (目前需要)手動調用 cmp 的補全函數才有提示，bug 待修
+輸入拼音, 就可以看到补全提示
 
 ## TODO
 
-- [ ] 實現更多 librime 的功能，比如配置繁體和簡體 
+- [ ] 實現更多 librime 的功能 (按数字选择, 候选翻页, 部分提交上屏, 特殊字符)
+- [ ] 读 LSP 文档, 继续提升补全的使用体验
+- [ ] 參數可配置 (用户目录, 触发条件, 候选数量)
 - [ ] 實現一個更好的 librime 的 rust wrapper 庫
-- [ ] 參數可配置
 - [ ] 測試其他 LSP clients
 
 ## Known Issues
 
-- [ ] 補全的觸發條件很奇怪，現在我是手動觸發補全寫的這些字
-- [ ] 沒有完全實現 rime 功能, 沒有記錄詞頻, 也沒有上下文
-- [ ] 還沒完成開始這個項目的最初目的, 即直接復用 rime 配置
+- [x] ~~補全的觸發條件很奇怪，現在我是手動觸發補全寫的這些字~~ 解决, 要设置 is_incomplete 来连续补全
+- [x] ~~還沒完成開始這個項目的最初目的, 即直接復用 rime 配置~~ 直接设置不同的用户目录好像可以, 比如我现在可以写简体了, 还需要进一步测试
+- [ ] 沒有完全實現 rime 功能, 沒有記錄詞頻, 也沒有上下文 (因为还没获取到补全的反馈)
 - [ ] 第一次嘗試從 Rust 調用 C 接口，寫的非常不專業且 unsafe
 
 ## Credits

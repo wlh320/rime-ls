@@ -151,6 +151,12 @@ impl LanguageServer for Backend<'static> {
             }
             Some(ret)
         }();
-        Ok(completions.map(CompletionResponse::Array))
+        match completions {
+            None => Ok(completions.map(CompletionResponse::Array)),
+            Some(items) => Ok(Some(CompletionResponse::List(CompletionList {
+                is_incomplete: true,
+                items
+            })))
+        }
     }
 }
