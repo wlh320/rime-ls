@@ -2,7 +2,8 @@
 
 爲 rime 輸入法庫 librime 實現 LSP 協議
 
-早期階段，能實現基本的輸入漢字功能，還很難用
+早期階段，能實現基本的輸入漢字功能，還很難用 
+(目前只在 Archlinux 和 Windows 10 用最新版本的 librime 1.7.3 测试过)
 
 類似項目要麼是專爲某個編輯器實現 rime 前端, 要麼用 LSP 自己實現打字邏輯
 
@@ -70,6 +71,7 @@ cmp.setup {
   -- ......
 }
 ```
+
 配置完 LSP 和补全插件的可配置项之后，用 `:lua start_rime()` 手動開啓 LSP server
 
 輸入拼音, 就可以看到补全提示
@@ -81,6 +83,7 @@ cmp.setup {
 - [x] 參數可配置 (用户目录, 触发条件, 候选数量)
 - [ ] 實現一個更好的 librime 的 rust wrapper 庫
 - [ ] 測試其他 LSP clients
+- [ ] 测试不同操作系统和 librime 版本
 
 ## Known Issues
 
