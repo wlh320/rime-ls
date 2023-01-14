@@ -1,4 +1,4 @@
-use crate::config::Config;
+use crate::config::{Config, Settings};
 use crate::rime::Rime;
 use crate::utils;
 use dashmap::DashMap;
@@ -40,10 +40,24 @@ impl Backend {
         self.documents.insert(params.uri.to_string(), rope);
     }
 
-    async fn change_config(&self, params: Value) {
+    async fn init_config(&self, params: Value) {
         let mut config = self.config.write().await;
         let new_cfg: Config = serde_json::from_value(params).unwrap_or_default();
         *config = new_cfg;
+    }
+
+    async fn apply_settings(&self, params: Value) {
+        let mut config = self.config.write().await;
+        let Ok(setting) = serde_json::from_value::<Settings>(params) else {
+            return ;
+        };
+        // TODO: any better ideas?
+        if let Some(v) = setting.max_candidates {
+            config.max_candidates = v;
+        }
+        if let Some(v) = setting.trigger_characters {
+            config.trigger_characters = v;
+        }
     }
 }
 
@@ -56,10 +70,10 @@ impl LanguageServer for Backend {
 
         // read uer configuration
         if let Some(init_options) = params.initialization_options {
-            self.change_config(init_options).await;
+            self.init_config(init_options).await;
         } else {
             self.client
-                .log_message(MessageType::INFO, "Use default config")
+                .log_message(MessageType::ERROR, "Use default config")
                 .await;
         }
         // init rime
@@ -78,7 +92,7 @@ impl LanguageServer for Backend {
                 )),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
-                    trigger_characters: self.config.read().await.trigger_characters.clone(),
+                    trigger_characters: None, // TODO
                     work_done_progress_options: Default::default(),
                     all_commit_characters: None,
                 }),
@@ -134,7 +148,11 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
-        self.change_config(params.settings).await;
+        self.client
+            .log_message(MessageType::ERROR, "cofig changed")
+            .await;
+        dbg!(&params);
+        self.apply_settings(params.settings).await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {

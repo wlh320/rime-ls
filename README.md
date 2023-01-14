@@ -26,8 +26,8 @@
 
 1. 配置 Rust 环境, 安装依赖 `clang` 和 `librime-dev`
 2. 编译 
-  - `librime >= 1.6` => `cargo build --release`
-  - `librime < 1.6` => `cargo build --release --features=no_log_dir`
+    - `librime >= 1.6` => `cargo build --release`
+    - `librime < 1.6` => `cargo build --release --features=no_log_dir`
 
 其他 linux 发行版类似
 
@@ -55,54 +55,10 @@ index a53dd2c..e51a63e 100644
 ## Usage
 
 1. 将编译好的二进制文件放在喜欢的目录下
-2. 配置 LSP 客戶端
-
-例如, 在 neovim + nvim-cmp
-
-```lua
-
--- my rime lsp
-start_rime = function ()
-  local client_id = vim.lsp.start_client({
-    cmd = { '/home/wlh/coding/rime-ls/target/release/rime_ls' },
-    init_options = {
-      shared_data_dir = "/usr/share/rime-data",
-      user_data_dir = "/home/wlh/.local/share/rime-ls",
-      log_dir = "/home/wlh/.local/share/rime-ls",
-      max_candidates = 10,
-      trigger_characters = { '>' }, -- not implemented yet
-    },
-  });
-  vim.lsp.buf_attach_client(0, client_id)
-end
-
--- cmp 會自己排序, 要配置裏把 sort_text 手動提前
-local cmp = require 'cmp'
-local compare = require 'cmp.config.compare'
-cmp.setup {
-  -- 其他设置 blabla
-  -- ......
-
-  -- 设置排序顺序
-  sorting = {
-    comparators = {
-      compare.sort_text,
-      compare.offset,
-      compare.exact,
-      compare.score,
-      compare.recently_used,
-      compare.kind,
-      compare.length,
-      compare.order,
-    }
-  },
-
-  -- 其他配置 blabla
-  -- ......
-}
-```
-配置完 LSP 和补全插件的可配置项之后，用 `:lua start_rime()` 手動開啓 LSP server
-
+2. 配置 LSP 客戶端, 例如: 
+    - [neovim + nvim-cmp](doc/nvim.md)
+    - [vim + coc.nvim](doc/vim.md)
+    - [vscode](doc/vscode.md)
 3. 輸入拼音, 就可以看到补全提示
 
 ## TODO
