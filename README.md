@@ -25,7 +25,9 @@
 ### Ubuntu
 
 1. 配置 Rust 环境, 安装依赖 `clang` 和 `librime-dev`
-2. `cargo build --release`
+2. 编译 
+  - `librime >= 1.6` => `cargo build --release`
+  - `librime < 1.6` => `cargo build --release --features=no_log_dir`
 
 其他 linux 发行版类似
 
