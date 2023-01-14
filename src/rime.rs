@@ -3,6 +3,15 @@ use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::sync::RwLock;
 
+macro_rules! rime_struct_init {
+    ($type:ty) => {{
+        let mut var: $type = unsafe { std::mem::zeroed() };
+        var.data_size =
+            (std::mem::size_of::<$type>() - std::mem::size_of_val(&var.data_size)) as i32;
+        var
+    }};
+}
+
 /// just call unsafe c ffi function simply
 /// TODO: make a good rust wrapper
 /// FIXME: maybe String not &str, because of LSP backend lifetime
@@ -27,8 +36,7 @@ impl Rime {
         user_data_dir: &str,
         log_dir: &str,
     ) -> Result<(), Box<dyn Error>> {
-        let mut traits: librime::RimeTraits = unsafe { std::mem::zeroed() };
-        traits.data_size = std::mem::size_of::<librime::RimeTraits>() as i32; // ?
+        let mut traits = rime_struct_init!(librime::RimeTraits);
 
         // set dirs
         traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
@@ -67,8 +75,7 @@ impl Rime {
                 Err("No such session")?
             }
         }
-        let mut context: librime::RimeContext = unsafe { std::mem::zeroed() };
-        context.data_size = std::mem::size_of::<librime::RimeContext>() as i32; // ?
+        let mut context = rime_struct_init!(librime::RimeContext);
         unsafe {
             librime::RimeGetContext(session_id, &mut context);
         }
