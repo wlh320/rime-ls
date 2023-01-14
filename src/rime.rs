@@ -52,7 +52,7 @@ impl Rime {
         traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
         traits.user_data_dir = CString::new(user_data_dir)?.into_raw();
 
-        #[cfg(feature = "log_dir")]
+        #[cfg(not(feature = "no_log_dir"))]
         {
             traits.log_dir = CString::new(log_dir)?.into_raw();
             traits.min_log_level = 1; // WARN
