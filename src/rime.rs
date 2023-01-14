@@ -30,6 +30,15 @@ impl Rime {
         Rime
     }
 
+    pub fn version() -> Option<&'static str> {
+        unsafe {
+            let api = librime::rime_get_api();
+            (*api)
+                .get_version
+                .and_then(|f| CStr::from_ptr(f()).to_str().ok())
+        }
+    }
+
     pub fn init(
         &self,
         shared_data_dir: &str,
@@ -41,8 +50,13 @@ impl Rime {
         // set dirs
         traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
         traits.user_data_dir = CString::new(user_data_dir)?.into_raw();
-        traits.log_dir = CString::new(log_dir)?.into_raw();
-        traits.min_log_level = 1; // WARN
+        match Self::version() {
+            Some(ver) if ver >= "1.6" => {
+                traits.log_dir = CString::new(log_dir)?.into_raw();
+                traits.min_log_level = 1; // WARN
+            }
+            _ => (),
+        }
 
         // set name
         traits.distribution_name = CString::new("Rime")?.into_raw();

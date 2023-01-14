@@ -2,8 +2,7 @@
 
 爲 rime 輸入法庫 librime 實現 LSP 協議
 
-早期階段，能實現基本的輸入漢字功能，還很難用 
-(目前只在 Archlinux 和 Windows 10 用最新版本的 librime 1.7.3 测试过)
+早期階段，目前只能實現基本的輸入漢字功能
 
 類似項目要麼是專爲某個編輯器實現 rime 前端, 要麼用 LSP 自己實現打字邏輯
 
@@ -21,11 +20,40 @@
 目前的實現是利用 tower-lsp 起一個 LSP 服務，直接讀取光標前的拼音,餵給 librime 得到後選項返回。
 之後可能改成用 rime 的更多 API 真正模擬打字，實現更多 rime 的功能
 
+## Build
+
+### Ubuntu
+
+1. 配置 Rust 环境, 安装依赖 `clang` 和 `librime-dev`
+2. `cargo build --release`
+
+其他 linux 发行版类似
+
+### Windows
+
+1. 配置 Rust 环境, 安装 `clang` 和 `librime` 的 Release
+2. 依赖的 `librime-sys` 包没有针对 Windows 优化, 需要先下载到本地,
+手动修改下 `build.rs` 引入头文件. 例如,
+```diff
+diff --git a/build.rs b/build.rs
+index a53dd2c..e51a63e 100644
+--- a/build.rs
++++ b/build.rs
+@@ -11,6 +11,7 @@ fn main() {
+
+     let bindings = bindgen::Builder::default()
+         .header("wrapper.h")
++        .clang_arg("-IC:\\Users\\wlh\\Downloads\\rime-1.7.3-win32\\dist\\include")
+         .generate()
+         .expect("Unable to generate bindings");
+```
+3. 修改本项目的 `Cargo.toml` 指向本地的依赖
+4. 用 `i686` 的 target 编译 (因为 librime 只给了 32 位的 dll)
+
 ## Usage
 
-1. 安裝依賴項 librime
-2. 編譯這個倉庫
-3. 配置 LSP 客戶端
+1. 将编译好的二进制文件放在喜欢的目录下
+2. 配置 LSP 客戶端
 
 例如, 在 neovim + nvim-cmp
 
@@ -35,7 +63,7 @@
 start_rime = function ()
   local client_id = vim.lsp.start_client({
     cmd = { '/home/wlh/coding/rime-ls/target/release/rime_ls' },
-    settings = {
+    init_options = {
       shared_data_dir = "/usr/share/rime-data",
       user_data_dir = "/home/wlh/.local/share/rime-ls",
       log_dir = "/home/wlh/.local/share/rime-ls",
@@ -71,10 +99,9 @@ cmp.setup {
   -- ......
 }
 ```
-
 配置完 LSP 和补全插件的可配置项之后，用 `:lua start_rime()` 手動開啓 LSP server
 
-輸入拼音, 就可以看到补全提示
+3. 輸入拼音, 就可以看到补全提示
 
 ## TODO
 
