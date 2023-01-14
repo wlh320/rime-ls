@@ -1,6 +1,6 @@
 use librime_sys as librime;
 use std::error::Error;
-use std::ffi::{CStr, CString};
+use std::ffi::{CStr, CString, NulError};
 use std::sync::RwLock;
 
 macro_rules! rime_struct_init {
@@ -16,7 +16,9 @@ macro_rules! rime_struct_init {
 /// TODO: make a good rust wrapper
 /// FIXME: maybe String not &str, because of LSP backend lifetime
 #[derive(Debug)]
-pub struct Rime;
+pub struct Rime {
+    is_init: RwLock<bool>,
+}
 
 #[derive(Debug)]
 pub struct Candidate {
@@ -27,7 +29,9 @@ pub struct Candidate {
 
 impl Rime {
     pub fn new() -> Self {
-        Rime
+        Rime {
+            is_init: RwLock::new(false),
+        }
     }
 
     #[allow(dead_code)]
@@ -71,6 +75,8 @@ impl Rime {
                 librime::RimeJoinMaintenanceThread();
             }
         }
+
+        *self.is_init.write().unwrap() = true;
         Ok(())
     }
 
@@ -81,6 +87,7 @@ impl Rime {
     }
 
     pub fn get_candidates_from_session(
+        &self,
         session_id: usize,
         max_candidates: usize,
     ) -> Result<Vec<Candidate>, Box<dyn Error>> {
@@ -94,6 +101,7 @@ impl Rime {
             librime::RimeGetContext(session_id, &mut context);
         }
         let res = RwLock::new(Vec::new());
+        let mut count_pgdn = 0;
         loop {
             for i in 0..context.menu.num_candidates {
                 let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
@@ -123,12 +131,21 @@ impl Rime {
             if context.menu.is_last_page != 0 {
                 break;
             }
-            // next page
+            // pagedown
             unsafe {
-                if librime::RimeProcessKey(session_id, b'=' as i32, 0) == 0 {
+                if librime::RimeProcessKey(session_id, 0xff56, 0) == 0 {
                     break;
                 }
                 librime::RimeGetContext(session_id, &mut context);
+                count_pgdn += 1;
+            }
+        }
+        // page_up to resume session
+        for _ in 0..count_pgdn {
+            unsafe {
+                if librime::RimeProcessKey(session_id, 0xff55, 0) == 0 {
+                    break;
+                }
             }
         }
         unsafe {
@@ -137,6 +154,7 @@ impl Rime {
         Ok(res.into_inner()?)
     }
 
+    #[allow(dead_code)]
     pub fn get_candidates_from_keys(
         &self,
         keys: Vec<u8>,
@@ -147,7 +165,7 @@ impl Rime {
             let ck = CString::new(keys)?;
             librime::RimeSimulateKeySequence(session_id, ck.into_raw());
         }
-        let res = Rime::get_candidates_from_session(session_id, max_candidates)?;
+        let res = self.get_candidates_from_session(session_id, max_candidates)?;
         unsafe {
             if librime::RimeFindSession(session_id) != 0 {
                 librime::RimeDestroySession(session_id);
@@ -156,12 +174,27 @@ impl Rime {
         Ok(res)
     }
 
-    #[allow(dead_code)]
-    /// TODO: simulate typing rather than directly giving string to rime
-    pub fn process_key(session_id: usize, key: u8) {
+    pub fn destroy_session(&self, session_id: usize) {
         unsafe {
             if librime::RimeFindSession(session_id) != 0 {
-                librime::RimeProcessKey(session_id, key as i32, 0);
+                librime::RimeDestroySession(session_id);
+            }
+        }
+    }
+
+    pub fn new_session_with_keys(&self, keys: &[u8]) -> Result<usize, NulError> {
+        let session_id = unsafe { librime::RimeCreateSession() };
+        unsafe {
+            let ck = CString::new(keys)?;
+            librime::RimeSimulateKeySequence(session_id, ck.into_raw());
+        }
+        Ok(session_id)
+    }
+
+    pub fn process_key(&self, session_id: usize, key: i32) {
+        unsafe {
+            if librime::RimeFindSession(session_id) != 0 {
+                librime::RimeProcessKey(session_id, key, 0);
             }
         }
     }

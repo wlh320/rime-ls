@@ -1,17 +1,7 @@
-use regex::Regex;
 use ropey::Rope;
 use tower_lsp::lsp_types::Position;
-
-pub fn get_pinyin(pre_text: &str) -> Option<String> {
-    if pre_text.is_empty() {
-        return None;
-    }
-    let regex = Regex::new(r"(?P<pinyin>[a-zA-Z]+)$").unwrap();
-    if let Some(m) = regex.captures(pre_text) {
-        return Some(m["pinyin"].to_string());
-    }
-    None
-}
+// use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, CompletionTextEdit, TextEdit};
+// use crate::rime::Candidate;
 
 pub fn position_to_offset(rope: &Rope, position: &Position) -> Option<usize> {
     let char = rope.try_line_to_char(position.line as usize).ok()?;
@@ -27,7 +17,24 @@ pub fn offset_to_position(rope: &Rope, offset: usize) -> Option<Position> {
     Some(Position::new(line as u32, column as u32))
 }
 
+/// int to sort_text string, with leading zero, e.g., 1 -> "z0001"
 pub fn order_to_sort_text(order: usize, len: usize) -> String {
-    // int to string, left padding with zero, e.g., 1 -> "0001"
-    format!("{:0len$}", order, len = len)
+    // add a 'z' in the beginning
+    format!("z{:0len$}", order, len = len)
+}
+
+pub enum DiffResult<'a> {
+    Add(&'a str),
+    Delete(&'a str),
+    New,
+}
+
+pub fn diff<'s>(old_text: &'s str, new_text: &'s str) -> DiffResult<'s> {
+    if let Some(suffix) = new_text.strip_prefix(old_text) {
+        DiffResult::Add(suffix)
+    } else if let Some(suffix) = old_text.strip_prefix(new_text) {
+        DiffResult::Delete(suffix)
+    } else {
+        DiffResult::New
+    }
 }

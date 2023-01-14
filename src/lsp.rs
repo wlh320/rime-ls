@@ -1,4 +1,5 @@
 use crate::config::{Config, Settings};
+use crate::input::{Input, InputState};
 use crate::rime::Rime;
 use crate::utils;
 use dashmap::DashMap;
@@ -14,6 +15,7 @@ pub struct Backend {
     client: Client,
     rime: Rime,
     documents: DashMap<String, Rope>,
+    state: DashMap<String, InputState>,
     config: RwLock<Config>,
 }
 
@@ -23,6 +25,7 @@ impl Backend {
             client,
             rime: Rime::new(),
             documents: DashMap::new(),
+            state: DashMap::new(),
             config: RwLock::new(Config::default()),
         }
     }
@@ -73,7 +76,7 @@ impl LanguageServer for Backend {
             self.init_config(init_options).await;
         } else {
             self.client
-                .log_message(MessageType::ERROR, "Use default config")
+                .log_message(MessageType::INFO, "Use default config")
                 .await;
         }
         // init rime
@@ -149,9 +152,8 @@ impl LanguageServer for Backend {
 
     async fn did_change_configuration(&self, params: DidChangeConfigurationParams) {
         self.client
-            .log_message(MessageType::ERROR, "cofig changed")
+            .log_message(MessageType::INFO, "settings changed")
             .await;
-        dbg!(&params);
         self.apply_settings(params.settings).await;
     }
 
@@ -165,41 +167,52 @@ impl LanguageServer for Backend {
         let position = params.text_document_position.position;
         let max_candidates = self.config.read().await.max_candidates;
         let max_len = max_candidates.to_string().len();
-        // self.client
-        //     .log_message(MessageType::ERROR, "Did Completion")
-        //     .await;
+        // TODO: Is it necessary to spawn another thread?
         let completions = || -> Option<Vec<CompletionItem>> {
+            // get new typing input
             let rope = self.documents.get(&uri.to_string())?;
-            let char = rope.try_line_to_char(position.line as usize).ok()?;
-            let offset = char + position.character as usize;
-            let pinyin = (offset <= rope.len_chars()).then(|| {
-                let slice = rope.slice(char..offset).as_str()?;
-                utils::get_pinyin(slice)
+            let line_begin = rope.try_line_to_char(position.line as usize).ok()?;
+            let curr_char = line_begin + position.character as usize;
+            let new_input = (curr_char <= rope.len_chars()).then(|| {
+                let slice = rope.slice(line_begin..curr_char).as_str()?;
+                Input::from_str(slice)
             })??;
-            // dbg!(&pinyin);
-            // TODO: check trigger characters
-            let cands = self
-                .rime
-                .get_candidates_from_keys(pinyin.clone().into_bytes(), max_candidates)
+
+            // handle new input && update state
+            let mut last_state = self.state.entry(uri.to_string()).or_default();
+            let new_offset = curr_char - new_input.raw_text.len();
+            let opt_idx = last_state
+                .handle_new_input(new_offset, &new_input, &self.rime)
                 .ok()?;
 
-            let mut ret = Vec::with_capacity(cands.len());
+            // get candidates from current session
+            let cands = self
+                .rime
+                .get_candidates_from_session(last_state.session_id, max_candidates)
+                .ok()?;
+
             let range = Range::new(
                 Position {
                     line: position.line,
-                    character: position.character - pinyin.len() as u32,
+                    character: position.character - new_input.raw_text.len() as u32,
                 },
                 position,
             );
+            let mut ret = Vec::with_capacity(cands.len());
             for c in cands {
-                ret.push(CompletionItem {
-                    label: c.text.clone(),
+                let item = CompletionItem {
+                    label: format!("{}. {}", c.order, &c.text),
                     kind: Some(CompletionItemKind::TEXT),
-                    filter_text: Some(pinyin.clone()),
+                    filter_text: Some(new_input.raw_text.to_string()),
                     sort_text: Some(utils::order_to_sort_text(c.order, max_len)),
                     text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
                     ..Default::default()
-                });
+                };
+                if opt_idx.is_some() && opt_idx.unwrap() == c.order {
+                    return Some(vec![item]);
+                } else {
+                    ret.push(item);
+                }
             }
             Some(ret)
         }();
