@@ -13,6 +13,8 @@
     - 默认开启, 随时补全, 用快捷键控制关闭 (写大量汉字)
     - 用特殊字符触发补全 (写少量汉字)
 
+https://user-images.githubusercontent.com/14821247/212668203-cf5a67f8-c2b6-4a97-90de-23ee45972ebc.mp4
+
 ## Build
 
 ### Ubuntu
