@@ -1,7 +1,5 @@
 use ropey::Rope;
 use tower_lsp::lsp_types::Position;
-// use tower_lsp::lsp_types::{CompletionItem, CompletionItemKind, CompletionTextEdit, TextEdit};
-// use crate::rime::Candidate;
 
 pub fn position_to_offset(rope: &Rope, position: &Position) -> Option<usize> {
     let char = rope.try_line_to_char(position.line as usize).ok()?;
@@ -24,13 +22,16 @@ pub fn order_to_sort_text(order: usize, len: usize) -> String {
 }
 
 pub enum DiffResult<'a> {
+    Same,
     Add(&'a str),
     Delete(&'a str),
     New,
 }
 
 pub fn diff<'s>(old_text: &'s str, new_text: &'s str) -> DiffResult<'s> {
-    if let Some(suffix) = new_text.strip_prefix(old_text) {
+    if old_text == new_text {
+        DiffResult::Same
+    } else if let Some(suffix) = new_text.strip_prefix(old_text) {
         DiffResult::Add(suffix)
     } else if let Some(suffix) = old_text.strip_prefix(new_text) {
         DiffResult::Delete(suffix)

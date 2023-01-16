@@ -14,7 +14,6 @@ macro_rules! rime_struct_init {
 
 /// just call unsafe c ffi function simply
 /// TODO: make a good rust wrapper
-/// FIXME: maybe String not &str, because of LSP backend lifetime
 #[derive(Debug)]
 pub struct Rime {
     is_init: RwLock<bool>,
@@ -59,7 +58,7 @@ impl Rime {
         #[cfg(not(feature = "no_log_dir"))]
         {
             traits.log_dir = CString::new(log_dir)?.into_raw();
-            traits.min_log_level = 1; // WARN
+            traits.min_log_level = 2; // ERROR
         }
 
         // set name
@@ -81,8 +80,10 @@ impl Rime {
     }
 
     pub fn destroy(&self) {
-        unsafe {
-            librime::RimeFinalize();
+        if *self.is_init.read().unwrap() {
+            unsafe {
+                librime::RimeFinalize();
+            }
         }
     }
 

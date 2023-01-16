@@ -5,20 +5,31 @@
 在配置文件中添加如下配置
 
 ```lua
--- my rime lsp
-start_rime = function ()
+start_rime = function()
   local client_id = vim.lsp.start_client({
+    name = "rime-ls",
     cmd = { '/home/wlh/coding/rime-ls/target/release/rime_ls' },
     init_options = {
+      enabled = false, -- 初始关闭, 手动开启
       shared_data_dir = "/usr/share/rime-data",
       user_data_dir = "/home/wlh/.local/share/rime-ls",
       log_dir = "/home/wlh/.local/share/rime-ls",
       max_candidates = 10,
-      trigger_characters = { '>' }, -- not implemented yet
+      trigger_characters = {},
     },
   });
   vim.lsp.buf_attach_client(0, client_id)
+  -- 快捷键手动开启
+  vim.keymap.set('n', '<leader>r', function() vim.lsp.buf.execute_command({ command = "toggle-rime" }) end)
 end
+
+vim.api.nvim_create_autocmd('BufReadPost', {
+  callback = function()
+    start_rime()
+  end,
+  pattern = '*',
+})
+
 ```
 
 cmp 会对补全候选进行排序,
@@ -51,6 +62,5 @@ cmp.setup {
 }
 ```
 
-之后，用 `:lua start_rime()` 就可以手动开启 rime-ls 的 LSP 服务了.
-当然, 也可以映射成快捷键或 autocmd
+以上配置进入文件便开启 LSP, 用快捷键切换是否开启补全
 

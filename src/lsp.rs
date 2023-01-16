@@ -1,8 +1,9 @@
 use crate::config::{Config, Settings};
-use crate::input::{Input, InputState};
+use crate::input::{trg_ptn, Input, InputResult, InputState, PTN};
 use crate::rime::Rime;
 use crate::utils;
 use dashmap::DashMap;
+use regex::Regex;
 use ropey::Rope;
 use serde_json::Value;
 use tokio::sync::RwLock;
@@ -15,8 +16,9 @@ pub struct Backend {
     client: Client,
     rime: Rime,
     documents: DashMap<String, Rope>,
-    state: DashMap<String, InputState>,
+    state: DashMap<String, Option<InputState>>,
     config: RwLock<Config>,
+    regex: RwLock<Regex>,
 }
 
 impl Backend {
@@ -27,6 +29,7 @@ impl Backend {
             documents: DashMap::new(),
             state: DashMap::new(),
             config: RwLock::new(Config::default()),
+            regex: RwLock::new(Regex::new(PTN).unwrap()),
         }
     }
 
@@ -35,6 +38,8 @@ impl Backend {
         let shared_data_dir = config.shared_data_dir.to_str().unwrap();
         let user_data_dir = config.user_data_dir.to_str().unwrap();
         let log_dir = config.log_dir.to_str().unwrap();
+        let trigger_characters = &config.trigger_characters;
+        self.compile_regex(trigger_characters).await;
         self.rime.init(shared_data_dir, user_data_dir, log_dir)
     }
 
@@ -49,16 +54,28 @@ impl Backend {
         *config = new_cfg;
     }
 
+    async fn compile_regex(&self, chars: &[String]) {
+        if !chars.is_empty() {
+            let mut regex = self.regex.write().await;
+            let pattern = format!(trg_ptn!(), chars.join(""));
+            *regex = Regex::new(&pattern).unwrap();
+        }
+    }
+
     async fn apply_settings(&self, params: Value) {
         let mut config = self.config.write().await;
-        let Ok(setting) = serde_json::from_value::<Settings>(params) else {
+        let Ok(settings) = serde_json::from_value::<Settings>(params) else {
             return ;
         };
         // TODO: any better ideas?
-        if let Some(v) = setting.max_candidates {
+        if let Some(v) = settings.enabled {
+            config.enabled = v;
+        }
+        if let Some(v) = settings.max_candidates {
             config.max_candidates = v;
         }
-        if let Some(v) = setting.trigger_characters {
+        if let Some(v) = settings.trigger_characters {
+            self.compile_regex(&v).await;
             config.trigger_characters = v;
         }
     }
@@ -84,6 +101,9 @@ impl LanguageServer for Backend {
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
 
+        let triggers = &self.config.read().await.trigger_characters;
+        let triggers = (!triggers.is_empty()).then(|| triggers.clone());
+
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "rime-ls".to_string(),
@@ -93,11 +113,24 @@ impl LanguageServer for Backend {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::INCREMENTAL,
                 )),
+                workspace: Some(WorkspaceServerCapabilities {
+                    workspace_folders: Some(WorkspaceFoldersServerCapabilities {
+                        supported: Some(true),
+                        change_notifications: Some(OneOf::Left(true)),
+                    }),
+                    file_operations: None,
+                }),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
-                    trigger_characters: None, // TODO
+                    trigger_characters: triggers,
                     work_done_progress_options: Default::default(),
                     all_commit_characters: None,
+                }),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec!["toggle-rime".to_string()],
+                    work_done_progress_options: WorkDoneProgressOptions {
+                        work_done_progress: Some(true),
+                    },
                 }),
                 ..ServerCapabilities::default()
             },
@@ -132,7 +165,7 @@ impl LanguageServer for Backend {
             } = change;
             if let Some(Range { start, end }) = range {
                 let s = utils::position_to_offset(&rope, &start);
-                let e = utils::position_to_offset(&rope, &end);
+                let e = utils::position_to_offset(&rope, &end).map(|e| e.min(rope.len_chars()));
                 if let (Some(s), Some(e)) = (s, e) {
                     rope.remove(s..e);
                     rope.insert(s, &text);
@@ -163,9 +196,13 @@ impl LanguageServer for Backend {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
+        if !self.config.read().await.enabled {
+            return Ok(None);
+        }
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let max_candidates = self.config.read().await.max_candidates;
+        let re = self.regex.read().await;
         let max_len = max_candidates.to_string().len();
         // TODO: Is it necessary to spawn another thread?
         let completions = || -> Option<Vec<CompletionItem>> {
@@ -175,22 +212,44 @@ impl LanguageServer for Backend {
             let curr_char = line_begin + position.character as usize;
             let new_input = (curr_char <= rope.len_chars()).then(|| {
                 let slice = rope.slice(line_begin..curr_char).as_str()?;
-                Input::from_str(slice)
+                Input::from_str(&re, slice)
             })??;
-
-            // handle new input && update state
-            let mut last_state = self.state.entry(uri.to_string()).or_default();
             let new_offset = curr_char - new_input.raw_text.len();
-            let opt_idx = last_state
-                .handle_new_input(new_offset, &new_input, &self.rime)
-                .ok()?;
+
+            // handle new input
+            let mut last_state = self.state.entry(uri.to_string()).or_default();
+            let InputResult { is_new, select } = match (*last_state).as_ref() {
+                Some(state) => {
+                    let last_input = Input::from_str(&re, &state.raw_text).unwrap();
+                    state
+                        .handle_new_input(last_input, new_offset, &new_input, &self.rime)
+                        .ok()?
+                }
+                None => InputResult {
+                    is_new: true,
+                    select: None,
+                },
+            };
+
+            // update state
+            let session_id = if is_new {
+                self.rime
+                    .new_session_with_keys(new_input.pinyin.to_lowercase().as_bytes())
+                    .ok()?
+            } else {
+                (*last_state).as_ref().map(|s| s.session_id).unwrap()
+            };
+            *last_state = Some(InputState::new(
+                new_input.raw_text.to_string(),
+                session_id,
+                new_offset,
+            ));
 
             // get candidates from current session
             let cands = self
                 .rime
-                .get_candidates_from_session(last_state.session_id, max_candidates)
+                .get_candidates_from_session(session_id, max_candidates)
                 .ok()?;
-
             let range = Range::new(
                 Position {
                     line: position.line,
@@ -208,7 +267,7 @@ impl LanguageServer for Backend {
                     text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
                     ..Default::default()
                 };
-                if opt_idx.is_some() && opt_idx.unwrap() == c.order {
+                if select.is_some() && select.unwrap() == c.order {
                     return Some(vec![item]);
                 } else {
                     ret.push(item);
@@ -223,5 +282,43 @@ impl LanguageServer for Backend {
                 items,
             }))),
         }
+    }
+
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
+        if params.command == "toggle-rime" {
+            let mut config = self.config.write().await;
+            config.enabled = !config.enabled;
+            // register
+            let token = NumberOrString::String(String::from("rime-ls"));
+            self.client
+                .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
+                    token: token.clone(),
+                })
+                .await
+                .unwrap();
+            // begin
+            let status = format!("Rime is {}", if config.enabled { "ON" } else { "OFF" });
+            self.client
+                .send_notification::<notification::Progress>(ProgressParams {
+                    token: token.clone(),
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
+                        WorkDoneProgressBegin {
+                            title: status,
+                            ..Default::default()
+                        },
+                    )),
+                })
+                .await;
+            // end
+            self.client
+                .send_notification::<notification::Progress>(ProgressParams {
+                    token,
+                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
+                        WorkDoneProgressEnd { message: None },
+                    )),
+                })
+                .await;
+        }
+        Ok(None)
     }
 }

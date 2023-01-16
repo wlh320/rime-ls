@@ -1,30 +1,23 @@
 # rime-ls
 
-爲 rime 輸入法庫 librime 實現 LSP 協議
+为 rime 输入法核心库 librime 实现 LSP 协议, 从而通过编辑器的代码补全功能输入汉字.
 
-早期階段，目前只能實現基本的輸入漢字功能
+项目还处在**早期阶段**, 各方面都非常不成熟.
 
-類似項目要麼是專爲某個編輯器實現 rime 前端, 要麼用 LSP 自己實現打字邏輯
+目标是提供 rime + LSP 的通用解决方案, 在不同编辑器内实现与其他 rime 前端类似的输入体验.
 
-如果 rime + LSP 感覺會更通用一些
+## Features
 
-項目的最終目標是最大可能復用已有的 rime 配置，實現與其他前端類似的體驗，並可用在所有 LSP client
-
-## How it works
-
-用 Rust 包裝的 librime C FFI 接口和 tower-lsp 實現
-
-利用 LSP 的補全功能，將 rime 的候選項作爲補全結果返回給編輯器，
-從而無需在編輯器裏面調用外部輸入法，適合代碼時輸入**少量**漢字
-
-目前的實現是利用 tower-lsp 起一個 LSP 服務，直接讀取光標前的拼音,
-依次餵給 librime 模拟打字得到候选项返回。
+- 按数字选择补全项
+- 多种触发方式
+    - 默认开启, 随时补全, 用快捷键控制关闭 (写大量汉字)
+    - 用特殊字符触发补全 (写少量汉字)
 
 ## Build
 
 ### Ubuntu
 
-1. 配置 Rust 环境, 安装依赖 `clang` 和 `librime-dev`
+1. 配置 Rust 环境, 安装额外依赖 `clang` 和 `librime-dev`
 2. 编译 
     - `librime >= 1.6` => `cargo build --release`
     - `librime < 1.6` => `cargo build --release --features=no_log_dir`
@@ -33,8 +26,8 @@
 
 ### Windows
 
-1. 配置 Rust 环境, 安装 `clang` 和 `librime` 的 Release
-2. 依赖的 `librime-sys` 包没有针对 Windows 优化, 需要先下载到本地,
+1. 配置 Rust 环境, 安装额外依赖 `clang` 和 `librime`
+2. 依赖的 `librime-sys` 包没有针对 Windows 优化, 直接编译可能失败, 需要先下载到本地,
 手动修改下 `build.rs` 引入头文件. 例如,
 ```diff
 diff --git a/build.rs b/build.rs
@@ -59,7 +52,8 @@ index a53dd2c..e51a63e 100644
     - [neovim + nvim-cmp](doc/nvim.md)
     - [vim + coc.nvim](doc/vim.md)
     - [vscode](doc/vscode.md)
-3. 輸入拼音, 就可以看到补全提示
+3. 默认輸入拼音, 就可以看到补全提示
+4. 可以通过改变配置控制补全行为
 
 ## TODO
 
@@ -67,7 +61,8 @@ index a53dd2c..e51a63e 100644
     - [x] 按数字键选择候选项
     - [ ] 与 rime API 同步翻页
     - [ ] 与 rime API 同步提交
-- [ ] 实现更友好的触发条件
+- [x] 实现更友好的触发条件
+    - [ ] 计划实现光标前面有汉字就开启, 但发现不同编辑器行为不一致, 搁置
 - [ ] 读 LSP 文档, 继续提升补全的使用体验
 - [x] 參數可配置 (用户目录, 触发条件, 候选数量)
 - [ ] 實現一個更好的 librime 的 rust wrapper 庫

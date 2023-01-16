@@ -5,6 +5,9 @@ use std::path::PathBuf;
 /// all configs of rime-ls
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
+    /// if enabled
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     /// rime share data dir
     #[serde(default = "default_shared_data_dir")]
     pub shared_data_dir: PathBuf,
@@ -25,6 +28,8 @@ pub struct Config {
 /// settings that can be tweaked during running
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Settings {
+    /// enabled
+    pub enabled: Option<bool>,
     /// max number of candidates
     pub max_candidates: Option<usize>,
     /// if not empty, only trigger completion with special keys
@@ -34,6 +39,7 @@ pub struct Settings {
 impl Default for Config {
     fn default() -> Self {
         Config {
+            enabled: default_enabled(),
             shared_data_dir: default_shared_data_dir(),
             user_data_dir: default_user_data_dir(),
             log_dir: default_log_dir(),
@@ -41,6 +47,10 @@ impl Default for Config {
             trigger_characters: default_trigger_characters(),
         }
     }
+}
+
+fn default_enabled() -> bool {
+    true
 }
 
 fn default_max_candidates() -> usize {
