@@ -32,7 +32,10 @@
 
 没有完全测试过, 理论上其他 LSP 能怎么用就可以怎么用
 
+补充: 通过 `:call CocRequest('rime-ls', 'workspace/executeCommand', { 'command': 'toggle-rime' })`
+可以手动控制开启和关闭
+
 # TODO
 
-- [ ] 发送 execute command 命令, 手动 toggle
+- [x] 发送 execute command 命令, 手动 toggle
 

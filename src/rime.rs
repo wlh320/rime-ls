@@ -70,8 +70,9 @@ impl Rime {
         unsafe {
             librime::RimeSetup(&mut traits);
             librime::RimeInitialize(&mut traits);
-            if librime::RimeStartMaintenance(false as i32) != 0 {
+            if librime::RimeStartMaintenanceOnWorkspaceChange() != 0 {
                 librime::RimeJoinMaintenanceThread();
+                librime::RimeSyncUserData();
             }
         }
 
