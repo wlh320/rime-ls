@@ -103,7 +103,7 @@ impl Rime {
         }
         let res = RwLock::new(Vec::new());
         let mut count_pgdn = 0;
-        loop {
+        while context.menu.num_candidates != 0 {
             for i in 0..context.menu.num_candidates {
                 let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
                 let text = unsafe { CStr::from_ptr(candidate.text).to_str()?.to_owned() };
@@ -161,17 +161,9 @@ impl Rime {
         keys: Vec<u8>,
         max_candidates: usize,
     ) -> Result<Vec<Candidate>, Box<dyn Error>> {
-        let session_id = unsafe { librime::RimeCreateSession() };
-        unsafe {
-            let ck = CString::new(keys)?;
-            librime::RimeSimulateKeySequence(session_id, ck.into_raw());
-        }
+        let session_id = self.new_session_with_keys(&keys)?;
         let res = self.get_candidates_from_session(session_id, max_candidates)?;
-        unsafe {
-            if librime::RimeFindSession(session_id) != 0 {
-                librime::RimeDestroySession(session_id);
-            }
-        }
+        self.destroy_session(session_id);
         Ok(res)
     }
 

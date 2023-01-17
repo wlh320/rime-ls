@@ -17,7 +17,7 @@ pub const PTN: &str = r"((?P<py>[a-zA-Z]+)(?P<op>[-=]*)(?P<se>[0-9]?))$";
 // hack "format argument must be a string literal"
 macro_rules! trg_ptn {
     () => {
-        "((?P<tr>[{}])(?P<py>[a-zA-Z]+)(?P<op>[-=]*)(?P<se>[0-9]?))$"
+        r"((?P<tr>[{}])(?P<py>[a-zA-Z]+)(?P<op>[-=]*)(?P<se>[0-9]?))$"
     };
 }
 pub(crate) use trg_ptn;
@@ -77,7 +77,6 @@ impl InputState {
         let diff_pinyin = diff(last_input.pinyin, new_input.pinyin);
         match diff_pinyin {
             DiffResult::Add(suffix) => {
-                let suffix = suffix.to_lowercase();
                 for key in suffix.bytes() {
                     rime.process_key(self.session_id, key as i32);
                 }

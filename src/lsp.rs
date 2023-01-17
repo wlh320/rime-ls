@@ -164,8 +164,8 @@ impl LanguageServer for Backend {
                 text,
             } = change;
             if let Some(Range { start, end }) = range {
-                let s = utils::position_to_offset(&rope, &start);
-                let e = utils::position_to_offset(&rope, &end).map(|e| e.min(rope.len_chars()));
+                let s = utils::position_to_offset(&rope, start).map(|e| e.min(rope.len_chars()));
+                let e = utils::position_to_offset(&rope, end).map(|e| e.min(rope.len_chars()));
                 if let (Some(s), Some(e)) = (s, e) {
                     rope.remove(s..e);
                     rope.insert(s, &text);
@@ -208,8 +208,12 @@ impl LanguageServer for Backend {
         let completions = || -> Option<Vec<CompletionItem>> {
             // get new typing input
             let rope = self.documents.get(&uri.to_string())?;
-            let line_begin = rope.try_line_to_char(position.line as usize).ok()?;
-            let curr_char = line_begin + position.character as usize;
+            let line = Position {
+                line: position.line,
+                character: 0,
+            };
+            let line_begin = utils::position_to_offset(&rope, line)?;
+            let curr_char = utils::position_to_offset(&rope, position)?;
             let new_input = (curr_char <= rope.len_chars()).then(|| {
                 let slice = rope.slice(line_begin..curr_char).as_str()?;
                 Input::from_str(&re, slice)
@@ -233,9 +237,8 @@ impl LanguageServer for Backend {
 
             // update state
             let session_id = if is_new {
-                self.rime
-                    .new_session_with_keys(new_input.pinyin.to_lowercase().as_bytes())
-                    .ok()?
+                let bytes = new_input.pinyin.as_bytes();
+                self.rime.new_session_with_keys(&bytes).ok()?
             } else {
                 (*last_state).as_ref().map(|s| s.session_id).unwrap()
             };
@@ -250,13 +253,8 @@ impl LanguageServer for Backend {
                 .rime
                 .get_candidates_from_session(session_id, max_candidates)
                 .ok()?;
-            let range = Range::new(
-                Position {
-                    line: position.line,
-                    character: position.character - new_input.raw_text.len() as u32,
-                },
-                position,
-            );
+
+            let range = Range::new(utils::offset_to_position(&rope, new_offset)?, position);
             let mut ret = Vec::with_capacity(cands.len());
             for c in cands {
                 let item = CompletionItem {
