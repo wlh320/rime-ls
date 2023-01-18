@@ -134,8 +134,13 @@ impl LanguageServer for Backend {
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
 
-        let triggers = &self.config.read().await.trigger_characters;
-        let triggers = (!triggers.is_empty()).then(|| triggers.clone());
+        let triggers = {
+            let page_triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec();
+            match self.config.read().await.trigger_characters.as_slice() {
+                [] => page_triggers,
+                user_triggers => user_triggers.to_owned(),
+            }
+        };
 
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
@@ -155,7 +160,7 @@ impl LanguageServer for Backend {
                 }),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
-                    trigger_characters: triggers,
+                    trigger_characters: Some(triggers),
                     work_done_progress_options: Default::default(),
                     all_commit_characters: None,
                 }),
