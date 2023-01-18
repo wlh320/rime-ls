@@ -16,9 +16,9 @@
       "filetypes": ["text"],
       "initializationOptions": {
         "enabled": true,
-        "shared_data_dir": "/usr/share/rime-data",
-        "user_data_dir": "/home/wlh/.local/share/rime-ls",
-        "log_dir": "/home/wlh/.local/share/rime-ls",
+        "shared_data_dir": "/usr/share/rime-data", // rime 公共目录
+        "user_data_dir": "/home/wlh/.local/share/rime-ls", // 指定用户目录，最好新建一个
+        "log_dir": "/home/wlh/.local/share/rime-ls", // 日志目录
         "max_candidates": 10,
         "trigger_characters": [],
       }

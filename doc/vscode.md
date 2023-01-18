@@ -25,9 +25,9 @@ export function activate(context: vscode.ExtensionContext) {
 		// Register the server for plain text documents
 		documentSelector: [{ scheme: 'file', language: 'plaintext' }],
 		initializationOptions: {
-			shared_data_dir: "C:\\Program Files (x86)\\Rime\\weasel-0.14.3\\data",
-			user_data_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime",
-			log_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime",
+			shared_data_dir: "C:\\Program Files (x86)\\Rime\\weasel-0.14.3\\data", // rime 公共目录
+			user_data_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 指定用户目录, 最好新建一个
+			log_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 日志目录
 			max_candidates: 10,
 			trigger_characters: [],
 		}
