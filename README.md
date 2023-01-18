@@ -17,7 +17,8 @@
 - 可以按配置其他 rime 输入法的方式去配置 (只有能影响候选项的配置是有用的)
 - 可以同步系统中已有 rime 输入法的词频
 
-https://user-images.githubusercontent.com/14821247/212668203-cf5a67f8-c2b6-4a97-90de-23ee45972ebc.mp4
+https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-bd85-81da2bd2957f.mp4
+
 
 ## Build
 
@@ -68,6 +69,7 @@ index a53dd2c..e51a63e 100644
 
 > **Warning**
 > **不推荐**与系统中的已有 rime 输入法共用一个用户目录, 免得出什么问题
+> 
 > 使用前备份自己的数据, 避免因作者对 rime API 理解不到位可能造成的数据损失
 
 目前 rime-ls 还不能拿到补全的反馈, 向 rime 提交选择的汉字, 所以自身的用户词库总是空的.
