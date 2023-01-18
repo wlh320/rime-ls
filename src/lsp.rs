@@ -1,5 +1,6 @@
 use crate::config::{Config, Settings};
-use crate::input::{trg_ptn, Input, InputResult, InputState, PTN};
+use crate::consts::{trg_ptn, PTN};
+use crate::input::{Input, InputResult, InputState};
 use crate::rime::Rime;
 use crate::utils;
 use dashmap::DashMap;
@@ -78,6 +79,38 @@ impl Backend {
             self.compile_regex(&v).await;
             config.trigger_characters = v;
         }
+    }
+
+    async fn notify_work_done(&self, message: &str) {
+        // register
+        let token = NumberOrString::String(String::from("rime-ls"));
+        self.client
+            .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
+                token: token.clone(),
+            })
+            .await
+            .unwrap();
+        // begin
+        self.client
+            .send_notification::<notification::Progress>(ProgressParams {
+                token: token.clone(),
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
+                    WorkDoneProgressBegin {
+                        title: message.to_string(),
+                        ..Default::default()
+                    },
+                )),
+            })
+            .await;
+        // end
+        self.client
+            .send_notification::<notification::Progress>(ProgressParams {
+                token,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
+                    message: None,
+                })),
+            })
+            .await;
     }
 }
 
@@ -238,7 +271,7 @@ impl LanguageServer for Backend {
             // update state
             let session_id = if is_new {
                 let bytes = new_input.pinyin.as_bytes();
-                self.rime.new_session_with_keys(&bytes).ok()?
+                self.rime.new_session_with_keys(bytes).ok()?
             } else {
                 (*last_state).as_ref().map(|s| s.session_id).unwrap()
             };
@@ -286,36 +319,8 @@ impl LanguageServer for Backend {
         if params.command == "toggle-rime" {
             let mut config = self.config.write().await;
             config.enabled = !config.enabled;
-            // register
-            let token = NumberOrString::String(String::from("rime-ls"));
-            self.client
-                .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
-                    token: token.clone(),
-                })
-                .await
-                .unwrap();
-            // begin
             let status = format!("Rime is {}", if config.enabled { "ON" } else { "OFF" });
-            self.client
-                .send_notification::<notification::Progress>(ProgressParams {
-                    token: token.clone(),
-                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
-                        WorkDoneProgressBegin {
-                            title: status,
-                            ..Default::default()
-                        },
-                    )),
-                })
-                .await;
-            // end
-            self.client
-                .send_notification::<notification::Progress>(ProgressParams {
-                    token,
-                    value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
-                        WorkDoneProgressEnd { message: None },
-                    )),
-                })
-                .await;
+            self.notify_work_done(&status).await;
         }
         Ok(None)
     }

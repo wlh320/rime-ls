@@ -1,3 +1,4 @@
+use crate::consts::K_BACKSPACE;
 use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
 use regex::Regex;
@@ -11,16 +12,6 @@ pub struct Input<'s> {
     pub oper: &'s str,
     pub select: &'s str,
 }
-
-pub const PTN: &str = r"((?P<py>[a-zA-Z]+)(?P<op>[-=]*)(?P<se>[0-9]?))$";
-
-// hack "format argument must be a string literal"
-macro_rules! trg_ptn {
-    () => {
-        r"((?P<tr>[{}])(?P<py>[a-zA-Z]+)(?P<op>[-=]*)(?P<se>[0-9]?))$"
-    };
-}
-pub(crate) use trg_ptn;
 
 impl<'s> Input<'s> {
     pub fn from_str(re: &Regex, text: &'s str) -> Option<Self> {
@@ -83,7 +74,7 @@ impl InputState {
             }
             DiffResult::Delete(suffix) => {
                 for _ in 0..suffix.len() {
-                    rime.process_key(self.session_id, 0xff08); // backspace
+                    rime.process_key(self.session_id, K_BACKSPACE);
                 }
             }
             DiffResult::New => {

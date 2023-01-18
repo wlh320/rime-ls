@@ -1,3 +1,4 @@
+use crate::consts::{K_PGDN, K_PGUP};
 use librime_sys as librime;
 use std::error::Error;
 use std::ffi::{CStr, CString, NulError};
@@ -88,20 +89,12 @@ impl Rime {
         }
     }
 
-    pub fn get_candidates_from_session(
+    pub fn get_candidates_from_context(
         &self,
         session_id: usize,
+        context: &mut librime::RimeContext,
         max_candidates: usize,
     ) -> Result<Vec<Candidate>, Box<dyn Error>> {
-        unsafe {
-            if librime::RimeFindSession(session_id) == 0 {
-                Err("No such session")?
-            }
-        }
-        let mut context = rime_struct_init!(librime::RimeContext);
-        unsafe {
-            librime::RimeGetContext(session_id, &mut context);
-        }
         let res = RwLock::new(Vec::new());
         let mut count_pgdn = 0;
         while context.menu.num_candidates != 0 {
@@ -109,19 +102,19 @@ impl Rime {
                 let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
                 let text = unsafe { CStr::from_ptr(candidate.text).to_str()?.to_owned() };
                 let comment = unsafe {
-                    if candidate.comment.as_ref().is_some() {
-                        CStr::from_ptr(candidate.text).to_str()?.to_owned()
-                    } else {
-                        String::from("")
-                    }
+                    (!candidate.comment.is_null())
+                        .then(|| match CStr::from_ptr(candidate.comment).to_str() {
+                            Ok(s) => s.to_string(),
+                            Err(_) => "".to_string(),
+                        })
+                        .unwrap_or_default()
                 };
                 let order = res.read().unwrap().len();
-                let cand = Candidate {
+                res.write().unwrap().push(Candidate {
                     text,
                     comment,
                     order,
-                };
-                res.write().unwrap().push(cand);
+                });
                 if res.read().unwrap().len() >= max_candidates {
                     break;
                 }
@@ -135,25 +128,71 @@ impl Rime {
             }
             // pagedown
             unsafe {
-                if librime::RimeProcessKey(session_id, 0xff56, 0) == 0 {
+                if librime::RimeProcessKey(session_id, K_PGDN, 0) == 0 {
                     break;
                 }
-                librime::RimeGetContext(session_id, &mut context);
                 count_pgdn += 1;
+                librime::RimeGetContext(session_id, context);
             }
         }
         // page_up to resume session
         for _ in 0..count_pgdn {
             unsafe {
-                if librime::RimeProcessKey(session_id, 0xff55, 0) == 0 {
-                    break;
-                }
+                librime::RimeProcessKey(session_id, K_PGUP, 0);
             }
         }
+        Ok(res.into_inner()?)
+    }
+
+    fn get_commit_text(&self, session_id: usize) -> Option<String> {
+        let mut commit = rime_struct_init!(librime::RimeCommit);
+        let mut ans: Option<String> = None;
+        unsafe {
+            librime::RimeGetCommit(session_id, &mut commit);
+            if !commit.text.is_null() {
+                ans = CStr::from_ptr(commit.text)
+                    .to_str()
+                    .ok()
+                    .map(|s| s.to_string());
+            }
+            librime::RimeFreeCommit(&mut commit);
+        }
+        ans
+    }
+
+    pub fn get_candidates_from_session(
+        &self,
+        session_id: usize,
+        max_candidates: usize,
+    ) -> Result<Vec<Candidate>, Box<dyn Error>> {
+        unsafe {
+            if librime::RimeFindSession(session_id) == 0 {
+                Err("No such session")?
+            }
+        }
+        // create context
+        let mut context = rime_struct_init!(librime::RimeContext);
+        unsafe {
+            librime::RimeGetContext(session_id, &mut context);
+        }
+        // if has commit text, return as the only candidate
+        let res = if let Some(text) = self.get_commit_text(session_id) {
+            Ok(vec![Candidate {
+                text,
+                comment: "".to_string(),
+                order: 0,
+            }])
+        } else {
+            // else get candidates
+            // TODO: based on total num_candidates, does not obey rime's pages
+            // FIXME: ugly code
+            self.get_candidates_from_context(session_id, &mut context, max_candidates)
+        };
+        // free context
         unsafe {
             librime::RimeFreeContext(&mut context);
         }
-        Ok(res.into_inner()?)
+        res
     }
 
     #[allow(dead_code)]
@@ -168,14 +207,6 @@ impl Rime {
         Ok(res)
     }
 
-    pub fn destroy_session(&self, session_id: usize) {
-        unsafe {
-            if librime::RimeFindSession(session_id) != 0 {
-                librime::RimeDestroySession(session_id);
-            }
-        }
-    }
-
     pub fn new_session_with_keys(&self, keys: &[u8]) -> Result<usize, NulError> {
         let session_id = unsafe { librime::RimeCreateSession() };
         unsafe {
@@ -183,6 +214,14 @@ impl Rime {
             librime::RimeSimulateKeySequence(session_id, ck.into_raw());
         }
         Ok(session_id)
+    }
+
+    pub fn destroy_session(&self, session_id: usize) {
+        unsafe {
+            if librime::RimeFindSession(session_id) != 0 {
+                librime::RimeDestroySession(session_id);
+            }
+        }
     }
 
     pub fn process_key(&self, session_id: usize, key: i32) {
