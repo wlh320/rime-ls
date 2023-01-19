@@ -2,7 +2,7 @@
 
 以 neovim + nvim-cmp 为例
 
-在配置文件中添加如下配置
+在配置文件中添加如下配置 (填入正确的程序路径和 rime 需要的目录)：
 
 ```lua
 start_rime = function()

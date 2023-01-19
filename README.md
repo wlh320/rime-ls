@@ -19,7 +19,6 @@
 
 https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-bd85-81da2bd2957f.mp4
 
-
 ## Build
 
 ### Ubuntu
@@ -28,6 +27,10 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 2. 编译 
     - `librime >= 1.6` => `cargo build --release`
     - `librime < 1.6` => `cargo build --release --features=no_log_dir`
+
+### ArchLinux
+
+可以通过我在 AUR 上打的包 [rime-ls](https://aur.archlinux.org/packages/rime-ls) 安装
 
 其他 linux 发行版类似
 

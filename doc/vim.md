@@ -3,7 +3,7 @@
 
 以 vim + coc.nvim 为例,
 
-在 `coc-settings.json` 里加入如下配置:
+在 `coc-settings.json` 里加入如下配置 (填入正确的程序路径和 rime 需要的目录)：
 
 ```jsonc
 {
