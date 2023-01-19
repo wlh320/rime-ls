@@ -1,7 +1,7 @@
 use crate::config::{Config, Settings};
 use crate::consts::{trg_ptn, PTN};
 use crate::input::{Input, InputResult, InputState};
-use crate::rime::Rime;
+use crate::rime::{Rime, RimeResponse};
 use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
@@ -65,8 +65,12 @@ impl Backend {
 
     async fn apply_settings(&self, params: Value) {
         let mut config = self.config.write().await;
-        let Ok(settings) = serde_json::from_value::<Settings>(params) else {
-            return ;
+        let settings = match serde_json::from_value::<Settings>(params) {
+            Ok(s) => s,
+            Err(e) => {
+                self.client.show_message(MessageType::ERROR, e).await;
+                return;
+            }
         };
         // TODO: any better ideas?
         if let Some(v) = settings.enabled {
@@ -287,14 +291,23 @@ impl LanguageServer for Backend {
             ));
 
             // get candidates from current session
-            let cands = self
+            let RimeResponse {
+                preedit,
+                candidates,
+            } = self
                 .rime
-                .get_candidates_from_session(session_id, max_candidates)
+                .get_response_from_session(session_id, max_candidates)
                 .ok()?;
 
-            let range = Range::new(utils::offset_to_position(&rope, new_offset)?, position);
-            let mut ret = Vec::with_capacity(cands.len());
-            for c in cands {
+            // prevent deleting puncts before real pinyin input
+            let real_offset = new_offset
+                + preedit
+                    .and_then(|preedit| new_input.pinyin.find(&preedit))
+                    .unwrap_or(0);
+
+            let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
+            let mut ret = Vec::with_capacity(candidates.len());
+            for c in candidates {
                 let item = CompletionItem {
                     label: format!("{}. {}", c.order, &c.text),
                     kind: Some(CompletionItemKind::TEXT),

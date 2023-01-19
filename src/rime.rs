@@ -27,6 +27,14 @@ pub struct Candidate {
     pub order: usize,
 }
 
+#[derive(Debug)]
+pub struct RimeResponse {
+    /// length of input accepted by rime
+    pub preedit: Option<String>,
+    /// list of candidate provided by rime
+    pub candidates: Vec<Candidate>,
+}
+
 impl Rime {
     pub fn new() -> Self {
         Rime {
@@ -160,11 +168,22 @@ impl Rime {
         ans
     }
 
-    pub fn get_candidates_from_session(
+    fn get_joined_preedit(&self, context: &librime::RimeContext) -> Option<String> {
+        if !context.composition.preedit.is_null() {
+            unsafe {
+                let preedit = CStr::from_ptr(context.composition.preedit).to_str().ok()?;
+                Some(preedit.chars().filter(|c| c != &' ').collect())
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn get_response_from_session(
         &self,
         session_id: usize,
         max_candidates: usize,
-    ) -> Result<Vec<Candidate>, Box<dyn Error>> {
+    ) -> Result<RimeResponse, Box<dyn Error>> {
         unsafe {
             if librime::RimeFindSession(session_id) == 0 {
                 Err("No such session")?
@@ -175,8 +194,9 @@ impl Rime {
         unsafe {
             librime::RimeGetContext(session_id, &mut context);
         }
+        let preedit = self.get_joined_preedit(&context);
         // if has commit text, return as the only candidate
-        let res = if let Some(text) = self.get_commit_text(session_id) {
+        let candidates = if let Some(text) = self.get_commit_text(session_id) {
             Ok(vec![Candidate {
                 text,
                 comment: "".to_string(),
@@ -192,7 +212,10 @@ impl Rime {
         unsafe {
             librime::RimeFreeContext(&mut context);
         }
-        res
+        candidates.map(|candidates| RimeResponse {
+            preedit,
+            candidates,
+        })
     }
 
     #[allow(dead_code)]
@@ -202,9 +225,9 @@ impl Rime {
         max_candidates: usize,
     ) -> Result<Vec<Candidate>, Box<dyn Error>> {
         let session_id = self.new_session_with_keys(&keys)?;
-        let res = self.get_candidates_from_session(session_id, max_candidates)?;
+        let res = self.get_response_from_session(session_id, max_candidates)?;
         self.destroy_session(session_id);
-        Ok(res)
+        Ok(res.candidates)
     }
 
     pub fn new_session_with_keys(&self, keys: &[u8]) -> Result<usize, NulError> {
