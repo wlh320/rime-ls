@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 
 pub const NT_PTN: &str = r"((?P<py>[a-zA-Z[:punct:]]+)(?P<se>[0-9]?))$";
-pub const AUTO_TRIGGER_PTN: &str = r"[^a-zA-Z[:punct:]\s][a-zA-Z[:punct:]]+$";
+pub const AUTO_TRIGGER_PTN: &str = r"[^a-zA-Z[:punct:]\s][a-zA-Z[:punct:]]+[0-9]?$";
 // hack "format argument must be a string literal"
 macro_rules! trigger_ptn {
     () => {
