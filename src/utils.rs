@@ -1,5 +1,6 @@
 use ropey::Rope;
 use tower_lsp::lsp_types::Position;
+use crate::consts::AUTO_TRIGGER_RE;
 
 /// UTF-16 Position -> UTF-8 offset
 pub fn position_to_offset(rope: &Rope, position: Position) -> Option<usize> {
@@ -44,4 +45,9 @@ pub fn diff<'s>(old_text: &'s str, new_text: &'s str) -> DiffResult<'s> {
     } else {
         DiffResult::New
     }
+}
+
+/// return if we need to check the existence of trigger character
+pub fn need_to_check_trigger(is_trigger_set: bool, line: &str) -> bool {
+    is_trigger_set && !AUTO_TRIGGER_RE.is_match(line)
 }

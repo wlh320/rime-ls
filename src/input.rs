@@ -9,7 +9,6 @@ pub struct Input<'s> {
     pub raw_text: &'s str,
     pub trigger: Option<&'s str>,
     pub pinyin: &'s str,
-    pub oper: &'s str,
     pub select: &'s str,
 }
 
@@ -19,10 +18,16 @@ impl<'s> Input<'s> {
             raw_text: caps.get(0).unwrap().as_str(),
             trigger: caps.name("tr").map(|c| c.as_str()),
             pinyin: caps.name("py").unwrap().as_str(),
-            oper: caps.name("op").unwrap().as_str(),
             select: caps.name("se").unwrap().as_str(),
         })
     }
+}
+
+/// which pattern is used for this input
+#[derive(Debug)]
+pub enum InputKind {
+    NoTrigger,
+    Trigger,
 }
 
 /// cached input state
@@ -31,6 +36,7 @@ pub struct InputState {
     pub raw_text: String,
     pub session_id: usize,
     pub offset: usize,
+    pub kind: InputKind,
 }
 
 pub struct InputResult {
@@ -41,11 +47,12 @@ pub struct InputResult {
 impl InputState {
     /// check if cached input is prefix or suffix of current input
     /// return diff result: Add / Delete / New
-    pub fn new(raw_text: String, session_id: usize, offset: usize) -> InputState {
+    pub fn new(raw_text: String, session_id: usize, offset: usize, kind: InputKind) -> InputState {
         InputState {
             raw_text,
             session_id,
             offset,
+            kind,
         }
     }
     pub fn handle_new_input(
@@ -82,8 +89,6 @@ impl InputState {
             }
             _ => (),
         }
-        // TODO: handle PageUP/PageDown operation
-
         // handle selection
         let idx = match diff_pinyin {
             DiffResult::Delete(_) => None,

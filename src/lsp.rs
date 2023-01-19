@@ -1,6 +1,6 @@
 use crate::config::{Config, Settings};
-use crate::consts::{trg_ptn, PTN};
-use crate::input::{Input, InputResult, InputState};
+use crate::consts::{trigger_ptn, NT_RE};
+use crate::input::{Input, InputKind, InputResult, InputState};
 use crate::rime::{Rime, RimeResponse};
 use crate::utils;
 use dashmap::DashMap;
@@ -30,7 +30,7 @@ impl Backend {
             documents: DashMap::new(),
             state: DashMap::new(),
             config: RwLock::new(Config::default()),
-            regex: RwLock::new(Regex::new(PTN).unwrap()),
+            regex: RwLock::new(NT_RE.clone()),
         }
     }
 
@@ -58,7 +58,7 @@ impl Backend {
     async fn compile_regex(&self, chars: &[String]) {
         if !chars.is_empty() {
             let mut regex = self.regex.write().await;
-            let pattern = format!(trg_ptn!(), chars.join(""));
+            let pattern = format!(trigger_ptn!(), chars.join(""));
             *regex = Regex::new(&pattern).unwrap();
         }
     }
@@ -125,7 +125,7 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Server initialized")
             .await;
 
-        // read uer configuration
+        // read user configuration
         if let Some(init_options) = params.initialization_options {
             self.init_config(init_options).await;
         } else {
@@ -137,7 +137,7 @@ impl LanguageServer for Backend {
         if (self.init().await).is_err() {
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
-
+        // set LSP triggers
         let triggers = {
             let page_triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec();
             match self.config.read().await.trigger_characters.as_slice() {
@@ -244,6 +244,7 @@ impl LanguageServer for Backend {
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
         let max_candidates = self.config.read().await.max_candidates;
+        let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
         let re = self.regex.read().await;
         let max_len = max_candidates.to_string().len();
         // TODO: Is it necessary to spawn another thread?
@@ -256,9 +257,15 @@ impl LanguageServer for Backend {
             };
             let line_begin = utils::position_to_offset(&rope, line)?;
             let curr_char = utils::position_to_offset(&rope, position)?;
+            let mut kind = InputKind::NoTrigger;
             let new_input = (curr_char <= rope.len_chars()).then(|| {
                 let slice = rope.slice(line_begin..curr_char).as_str()?;
-                Input::from_str(&re, slice)
+                if utils::need_to_check_trigger(is_trigger_set, slice) {
+                    kind = InputKind::Trigger;
+                    Input::from_str(&re, slice)
+                } else {
+                    Input::from_str(&NT_RE, slice)
+                }
             })??;
             let new_offset = curr_char - new_input.raw_text.len();
 
@@ -266,7 +273,10 @@ impl LanguageServer for Backend {
             let mut last_state = self.state.entry(uri.to_string()).or_default();
             let InputResult { is_new, select } = match (*last_state).as_ref() {
                 Some(state) => {
-                    let last_input = Input::from_str(&re, &state.raw_text).unwrap();
+                    let last_input = match state.kind {
+                        InputKind::NoTrigger => Input::from_str(&NT_RE, &state.raw_text).unwrap(),
+                        InputKind::Trigger => Input::from_str(&re, &state.raw_text).unwrap(),
+                    };
                     state
                         .handle_new_input(last_input, new_offset, &new_input, &self.rime)
                         .ok()?
@@ -288,6 +298,7 @@ impl LanguageServer for Backend {
                 new_input.raw_text.to_string(),
                 session_id,
                 new_offset,
+                kind,
             ));
 
             // get candidates from current session
@@ -305,6 +316,7 @@ impl LanguageServer for Backend {
                     .and_then(|preedit| new_input.pinyin.find(&preedit))
                     .unwrap_or(0);
 
+            // return candidates
             let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
             let mut ret = Vec::with_capacity(candidates.len());
             for c in candidates {
