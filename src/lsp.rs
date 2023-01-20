@@ -139,11 +139,10 @@ impl LanguageServer for Backend {
         }
         // set LSP triggers
         let triggers = {
-            let page_triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec();
-            match self.config.read().await.trigger_characters.as_slice() {
-                [] => page_triggers,
-                user_triggers => user_triggers.to_owned(),
-            }
+            let mut triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec(); // pages
+            let user_triggers = &self.config.read().await.trigger_characters;
+            triggers.extend_from_slice(user_triggers);
+            triggers
         };
 
         Ok(InitializeResult {
@@ -323,6 +322,7 @@ impl LanguageServer for Backend {
                 let item = CompletionItem {
                     label: format!("{}. {}", c.order, &c.text),
                     kind: Some(CompletionItemKind::TEXT),
+                    detail: utils::option_string(c.comment),
                     filter_text: Some(new_input.raw_text.to_string()),
                     sort_text: Some(utils::order_to_sort_text(c.order, max_len)),
                     text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),

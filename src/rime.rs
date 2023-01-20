@@ -259,8 +259,11 @@ impl Rime {
 #[test]
 fn test_get_candidates() {
     let shared_data_dir = "/usr/share/rime-data/";
-    let user_data_dir = "/home/wlh/.local/share/rime-ls/";
+    let base_dir = directories::BaseDirs::new().unwrap();
+    let data_dir = base_dir.data_dir().join("rime-ls-test");
+    let user_data_dir = data_dir.to_str().unwrap();
     let log_dir = "/tmp";
+
     // init
     let rime = Rime::new();
     rime.init(shared_data_dir, user_data_dir, log_dir).unwrap();

@@ -1,7 +1,8 @@
 [package]
 name = "rime_ls"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
+authors = ["ZilcH40 <wlh233@live.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,3 +21,7 @@ lazy_static = "1.4.0"
 [features]
 default = []
 no_log_dir = [] # for librime < 1.6
+
+[profile.release]
+strip = true
+lto = true
