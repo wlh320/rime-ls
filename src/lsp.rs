@@ -1,13 +1,13 @@
 use crate::config::{Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
 use crate::input::{Input, InputKind, InputResult, InputState};
-use crate::rime::{Rime, RimeResponse};
+use crate::rime::{Candidate, Rime, RimeResponse};
 use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
 use serde_json::Value;
-use tokio::sync::{oneshot, RwLock};
+use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -118,6 +118,89 @@ impl Backend {
                 })),
             })
             .await;
+    }
+
+    async fn get_completions(&self, uri: Url, position: Position) -> Option<Vec<CompletionItem>> {
+        let max_candidates = self.config.read().await.max_candidates;
+        let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
+        let re = self.regex.read().await;
+        let max_len = max_candidates.to_string().len();
+        let rope = self.documents.get(&uri.to_string())?;
+
+        // get new input
+        let line = Position::new(position.line, 0);
+        let line_begin = utils::position_to_offset(&rope, line)?;
+        let curr_char = utils::position_to_offset(&rope, position)?;
+        let mut kind = InputKind::NoTrigger;
+        let new_input = (curr_char <= rope.len_chars()).then(|| {
+            let slice = rope.slice(line_begin..curr_char).as_str()?;
+            if utils::need_to_check_trigger(is_trigger_set, slice) {
+                kind = InputKind::Trigger;
+                Input::from_str(&re, slice)
+            } else {
+                Input::from_str(&NT_RE, slice)
+            }
+        })??;
+        let new_offset = curr_char - new_input.raw_text.len();
+
+        // handle new input
+        let mut last_state = self.state.entry(uri.to_string()).or_default();
+        let InputResult { is_new, select } = match (*last_state).as_ref() {
+            Some(state) => state
+                .handle_new_input(&re, new_offset, &new_input, &self.rime)
+                .ok()?,
+            None => InputResult {
+                is_new: true,
+                select: None,
+            },
+        };
+
+        // update state
+        let session_id = if is_new {
+            let bytes = new_input.pinyin.as_bytes();
+            self.rime.new_session_with_keys(bytes).ok()?
+        } else {
+            (*last_state).as_ref().map(|s| s.session_id).unwrap()
+        };
+        *last_state = Some(InputState::new(
+            new_input.raw_text.to_string(),
+            session_id,
+            new_offset,
+            kind,
+        ));
+
+        // get candidates from current session
+        let RimeResponse {
+            preedit,
+            candidates,
+        } = self
+            .rime
+            .get_response_from_session(session_id, max_candidates)
+            .ok()?;
+        // prevent deleting puncts before real pinyin input
+        let real_offset = new_offset
+            + preedit
+                .and_then(|preedit| new_input.pinyin.find(&preedit))
+                .unwrap_or(0);
+
+        // return candidates
+        let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
+        let candidate_to_completion_item = |c: Candidate| -> CompletionItem {
+            CompletionItem {
+                label: format!("{}. {}", c.order, &c.text),
+                kind: Some(CompletionItemKind::TEXT),
+                detail: utils::option_string(c.comment),
+                filter_text: Some(new_input.raw_text.to_string()),
+                sort_text: Some(utils::order_to_sort_text(c.order, max_len)),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
+                ..Default::default()
+            }
+        };
+        let mut cand_iter = candidates.into_iter();
+        select
+            .and_then(|i| cand_iter.nth(i - 1)) // Note: c.order starts from 1
+            .map(|c| vec![candidate_to_completion_item(c)])
+            .or_else(|| Some(cand_iter.map(candidate_to_completion_item).collect()))
     }
 }
 
@@ -245,111 +328,8 @@ impl LanguageServer for Backend {
         }
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        let max_candidates = self.config.read().await.max_candidates;
-        let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
-        let re = self.regex.read().await;
-        let max_len = max_candidates.to_string().len();
         // TODO: Is it necessary to spawn another thread?
-        let get_completions = || -> Option<Vec<CompletionItem>> {
-            // get new typing input
-            let rope = self.documents.get(&uri.to_string())?;
-            let line = Position {
-                line: position.line,
-                character: 0,
-            };
-            let line_begin = utils::position_to_offset(&rope, line)?;
-            let curr_char = utils::position_to_offset(&rope, position)?;
-            let mut kind = InputKind::NoTrigger;
-            let new_input = (curr_char <= rope.len_chars()).then(|| {
-                let slice = rope.slice(line_begin..curr_char).as_str()?;
-                if utils::need_to_check_trigger(is_trigger_set, slice) {
-                    kind = InputKind::Trigger;
-                    Input::from_str(&re, slice)
-                } else {
-                    Input::from_str(&NT_RE, slice)
-                }
-            })??;
-            let new_offset = curr_char - new_input.raw_text.len();
-
-            // handle new input
-            let mut last_state = self.state.entry(uri.to_string()).or_default();
-            let InputResult { is_new, select } = match (*last_state).as_ref() {
-                Some(state) => {
-                    let last_input = match state.kind {
-                        InputKind::NoTrigger => Input::from_str(&NT_RE, &state.raw_text).unwrap(),
-                        InputKind::Trigger => Input::from_str(&re, &state.raw_text).unwrap(),
-                    };
-                    state
-                        .handle_new_input(last_input, new_offset, &new_input, &self.rime)
-                        .ok()?
-                }
-                None => InputResult {
-                    is_new: true,
-                    select: None,
-                },
-            };
-
-            // update state
-            let session_id = if is_new {
-                let bytes = new_input.pinyin.as_bytes();
-                self.rime.new_session_with_keys(bytes).ok()?
-            } else {
-                (*last_state).as_ref().map(|s| s.session_id).unwrap()
-            };
-            *last_state = Some(InputState::new(
-                new_input.raw_text.to_string(),
-                session_id,
-                new_offset,
-                kind,
-            ));
-
-            // get candidates from current session
-            let RimeResponse {
-                preedit,
-                candidates,
-            } = self
-                .rime
-                .get_response_from_session(session_id, max_candidates)
-                .ok()?;
-
-            // prevent deleting puncts before real pinyin input
-            let real_offset = new_offset
-                + preedit
-                    .and_then(|preedit| new_input.pinyin.find(&preedit))
-                    .unwrap_or(0);
-
-            // return candidates
-            let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
-            let mut ret = Vec::with_capacity(candidates.len());
-            for c in candidates {
-                let item = CompletionItem {
-                    label: format!("{}. {}", c.order, &c.text),
-                    kind: Some(CompletionItemKind::TEXT),
-                    detail: utils::option_string(c.comment),
-                    filter_text: Some(new_input.raw_text.to_string()),
-                    sort_text: Some(utils::order_to_sort_text(c.order, max_len)),
-                    text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
-                    ..Default::default()
-                };
-                if select.is_some() && select.unwrap() == c.order {
-                    return Some(vec![item]);
-                } else {
-                    ret.push(item);
-                }
-            }
-            Some(ret)
-        };
-
-        // FIXME: scope thread will not return immediately, 
-        // how to spawn a new thread here
-        let (tx, rx) = oneshot::channel();
-        std::thread::scope(|s| {
-            s.spawn(|| {
-                let completions = get_completions();
-                tx.send(completions).unwrap();
-            });
-        });
-        let completions = rx.await.unwrap();
+        let completions = self.get_completions(uri, position).await;
         match completions {
             None => Ok(completions.map(CompletionResponse::Array)),
             Some(items) => Ok(Some(CompletionResponse::List(CompletionList {

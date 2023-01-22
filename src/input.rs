@@ -1,4 +1,4 @@
-use crate::consts::K_BACKSPACE;
+use crate::consts::{K_BACKSPACE, NT_RE};
 use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
 use regex::Regex;
@@ -57,11 +57,16 @@ impl InputState {
     }
     pub fn handle_new_input(
         &self,
-        last_input: Input,
+        re: &Regex,
         new_offset: usize,
         new_input: &Input,
         rime: &Rime,
     ) -> Result<InputResult, Box<dyn std::error::Error>> {
+        // TODO: need to parse last input again
+        let last_input = match self.kind {
+            InputKind::NoTrigger => Input::from_str(&NT_RE, &self.raw_text).unwrap(),
+            InputKind::Trigger => Input::from_str(&re, &self.raw_text).unwrap(),
+        };
         // new typing
         if self.offset != new_offset {
             rime.destroy_session(self.session_id);
