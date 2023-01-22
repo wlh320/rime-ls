@@ -1,6 +1,6 @@
 # rime-ls
 
-为 rime 输入法核心库 librime 实现 LSP 协议, 从而通过编辑器的代码补全功能输入汉字.
+为 rime 输入法核心库 librime (的部分功能) 实现 LSP 协议, 从而通过编辑器的代码补全功能输入汉字.
 
 项目还处在**早期阶段**, 各方面都非常不成熟.
 
@@ -80,7 +80,9 @@ index a53dd2c..e51a63e 100644
 
 如需同步词库, 可以在 rime-ls 自己的用户目录下的 `installation.yaml`
 添加`sync_dir: "/<existing user data dir>/sync"` 配置项,
-每次 rime-ls 启动时会触发 rime 的 sync.
+每次 rime-ls 启动时会触发 rime 的同步.
+
+也可以通過 `workspace/executeCommand` 手動調用 `rime-ls.sync_user_data` 的命令同步 (after v0.1.1)
 
 ## TODO
 
@@ -96,7 +98,7 @@ index a53dd2c..e51a63e 100644
 - [ ] 實現一個更好的 librime 的 rust wrapper 庫
 - [x] 測試其他 LSP clients
 - [x] 测试不同操作系统和 librime 版本
-- [x] 测试与不同 rime 配置的兼容性
+- [ ] 测试与不同 rime 配置的兼容性
 
 ## Known Issues
 

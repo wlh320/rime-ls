@@ -5,7 +5,7 @@
 在配置文件中添加如下配置 (填入正确的程序路径和 rime 需要的目录)：
 
 ```lua
-start_rime = function()
+local start_rime = function()
   local client_id = vim.lsp.start_client({
     name = "rime-ls",
     cmd = { '/home/wlh/coding/rime-ls/target/release/rime_ls' },
@@ -19,8 +19,15 @@ start_rime = function()
     },
   });
   vim.lsp.buf_attach_client(0, client_id)
-  -- 快捷键手动开启
-  vim.keymap.set('n', '<leader>r', function() vim.lsp.buf.execute_command({ command = "toggle-rime" }) end)
+  if client_id then
+    vim.lsp.buf_attach_client(0, client_id)
+    -- 快捷键手动开启
+    -- old
+    -- vim.keymap.set('n', '<leader><space>', function() vim.lsp.buf.execute_command({ command = "toggle-rime" }) end)
+    -- new since latest git commit
+    vim.keymap.set('n', '<leader><space>', function() vim.lsp.buf.execute_command({ command = "rime-ls.toggle-rime" }) end)
+    vim.keymap.set('n', '<leader>rs', function() vim.lsp.buf.execute_command({ command = "rime-ls.sync-user-data" }) end)
+  end
 end
 
 vim.api.nvim_create_autocmd('BufReadPost', {

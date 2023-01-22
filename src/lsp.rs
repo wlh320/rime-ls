@@ -7,7 +7,7 @@ use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
 use serde_json::Value;
-use tokio::sync::RwLock;
+use tokio::sync::{oneshot, RwLock};
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
@@ -85,9 +85,9 @@ impl Backend {
         }
     }
 
-    async fn notify_work_done(&self, message: &str) {
+    async fn notify_work_begin(&self, token: &str, message: &str) {
         // register
-        let token = NumberOrString::String(String::from("rime-ls"));
+        let token = NumberOrString::String(String::from(token));
         self.client
             .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
                 token: token.clone(),
@@ -106,12 +106,15 @@ impl Backend {
                 )),
             })
             .await;
-        // end
+    }
+
+    async fn notify_work_done(&self, token: &str, message: &str) {
+        let token = NumberOrString::String(String::from(token));
         self.client
             .send_notification::<notification::Progress>(ProgressParams {
                 token,
                 value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(WorkDoneProgressEnd {
-                    message: None,
+                    message: Some(message.to_string()),
                 })),
             })
             .await;
@@ -247,7 +250,7 @@ impl LanguageServer for Backend {
         let re = self.regex.read().await;
         let max_len = max_candidates.to_string().len();
         // TODO: Is it necessary to spawn another thread?
-        let completions = || -> Option<Vec<CompletionItem>> {
+        let get_completions = || -> Option<Vec<CompletionItem>> {
             // get new typing input
             let rope = self.documents.get(&uri.to_string())?;
             let line = Position {
@@ -335,7 +338,18 @@ impl LanguageServer for Backend {
                 }
             }
             Some(ret)
-        }();
+        };
+
+        // FIXME: scope thread will not return immediately, 
+        // how to spawn a new thread here
+        let (tx, rx) = oneshot::channel();
+        std::thread::scope(|s| {
+            s.spawn(|| {
+                let completions = get_completions();
+                tx.send(completions).unwrap();
+            });
+        });
+        let completions = rx.await.unwrap();
         match completions {
             None => Ok(completions.map(CompletionResponse::Array)),
             Some(items) => Ok(Some(CompletionResponse::List(CompletionList {
@@ -346,11 +360,28 @@ impl LanguageServer for Backend {
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
-        if params.command == "toggle-rime" {
-            let mut config = self.config.write().await;
-            config.enabled = !config.enabled;
-            let status = format!("Rime is {}", if config.enabled { "ON" } else { "OFF" });
-            self.notify_work_done(&status).await;
+        let command = params.command.as_ref();
+        match command {
+            "rime-ls.toggle-rime" => {
+                self.notify_work_begin(command, command).await;
+                let mut config = self.config.write().await;
+                config.enabled = !config.enabled;
+                let status = format!("Rime is {}", if config.enabled { "ON" } else { "OFF" });
+                self.notify_work_done(command, &status).await;
+                // return a bool representing if rime-ls is enabled
+                return Ok(Some(Value::from(config.enabled)));
+            }
+            "rime-ls.sync-user-data" => {
+                self.notify_work_begin(command, command).await;
+                // TODO: do it in async way.
+                self.rime.sync_user_data();
+                self.notify_work_done(command, "Rime is Ready.").await;
+            }
+            _ => {
+                self.client
+                    .show_message(MessageType::WARNING, "No such rime-ls command")
+                    .await;
+            }
         }
         Ok(None)
     }

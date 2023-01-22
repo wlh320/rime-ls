@@ -82,6 +82,7 @@ impl Rime {
             if librime::RimeStartMaintenanceOnWorkspaceChange() != 0 {
                 librime::RimeJoinMaintenanceThread();
                 librime::RimeSyncUserData();
+                librime::RimeJoinMaintenanceThread();
             }
         }
 
@@ -117,7 +118,7 @@ impl Rime {
                         })
                         .unwrap_or_default()
                 };
-                let order = res.read().unwrap().len();
+                let order = res.read().unwrap().len() + 1;
                 res.write().unwrap().push(Candidate {
                     text,
                     comment,
@@ -252,6 +253,13 @@ impl Rime {
             if librime::RimeFindSession(session_id) != 0 {
                 librime::RimeProcessKey(session_id, key, 0);
             }
+        }
+    }
+
+    pub fn sync_user_data(&self) {
+        unsafe {
+            librime::RimeSyncUserData();
+            librime::RimeJoinMaintenanceThread();
         }
     }
 }
