@@ -78,6 +78,7 @@ fn default_log_dir() -> PathBuf {
 #[test]
 fn test_default_config() {
     let config: Config = Default::default();
+    assert_eq!(config.enabled, default_enabled());
     assert_eq!(config.shared_data_dir, default_shared_data_dir());
     assert_eq!(config.user_data_dir, default_user_data_dir());
     assert_eq!(config.log_dir, default_log_dir());

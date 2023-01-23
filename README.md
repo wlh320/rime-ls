@@ -82,7 +82,7 @@ index a53dd2c..e51a63e 100644
 添加`sync_dir: "/<existing user data dir>/sync"` 配置项,
 每次 rime-ls 启动时会触发 rime 的同步.
 
-也可以通過 `workspace/executeCommand` 手動調用 `rime-ls.sync_user_data` 的命令同步 (after v0.1.1)
+也可以通過 LSP 的 `workspace/executeCommand` 手動調用 `rime-ls.sync_user_data` 的命令同步 (since v0.1.2)
 
 ## TODO
 
@@ -91,6 +91,7 @@ index a53dd2c..e51a63e 100644
     - [x] 与 rime API 同步翻页
     - [ ] 与 rime API 同步提交
     - [x] 输入标点符号
+    - [ ] 输入方案选择
 - [x] 实现更友好的触发条件
     - [x] ~~计划实现光标前面有汉字就开启, 但发现不同编辑器行为不一致, 搁置~~ 多加了一次正则匹配解决了, 不知道性能如何
 - [ ] 读 LSP 文档, 继续提升补全的使用体验
@@ -107,6 +108,7 @@ index a53dd2c..e51a63e 100644
 - [ ] 沒有完全實現 rime 功能, 只是读取了候选项, 沒有把选到的字真正提交 
 (因为还没获取到补全的反馈, 计划自己处理用户输入再与 rime 交互, 感觉有点麻烦, 可能搁置)
 - [ ] 第一次嘗試從 Rust 調用 C 接口，寫的非常不專業且 unsafe
+- [ ] 同时开启多个共用同一个用户目录的程序时，会因为用户数据库的锁导致不工作
 
 ## Credits
 

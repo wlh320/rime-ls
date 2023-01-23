@@ -14,22 +14,22 @@ local start_rime = function()
       shared_data_dir = "/usr/share/rime-data", -- rime 公共目录
       user_data_dir = "/home/wlh/.local/share/rime-ls", -- 指定用户目录, 最好新建一个
       log_dir = "/home/wlh/.local/share/rime-ls", -- 日志目录
-      max_candidates = 10,
-      trigger_characters = {},
+      max_candidates = 10, -- 与 rime 的候选数量配置最好保持一致
+      trigger_characters = {}, -- 为空表示全局开启
     },
   });
   vim.lsp.buf_attach_client(0, client_id)
   if client_id then
     vim.lsp.buf_attach_client(0, client_id)
     -- 快捷键手动开启
-    -- old
+    -- before v0.1.2
     -- vim.keymap.set('n', '<leader><space>', function() vim.lsp.buf.execute_command({ command = "toggle-rime" }) end)
-    -- new since latest git commit
+    -- since v0.1.2
     vim.keymap.set('n', '<leader><space>', function() vim.lsp.buf.execute_command({ command = "rime-ls.toggle-rime" }) end)
     vim.keymap.set('n', '<leader>rs', function() vim.lsp.buf.execute_command({ command = "rime-ls.sync-user-data" }) end)
   end
 end
-
+-- 对每个文件都默认开启
 vim.api.nvim_create_autocmd('BufReadPost', {
   callback = function()
     start_rime()

@@ -65,7 +65,7 @@ impl InputState {
         // TODO: need to parse last input again
         let last_input = match self.kind {
             InputKind::NoTrigger => Input::from_str(&NT_RE, &self.raw_text).unwrap(),
-            InputKind::Trigger => Input::from_str(&re, &self.raw_text).unwrap(),
+            InputKind::Trigger => Input::from_str(re, &self.raw_text).unwrap(),
         };
         // new typing
         if self.offset != new_offset {

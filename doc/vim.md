@@ -19,8 +19,8 @@
         "shared_data_dir": "/usr/share/rime-data", // rime 公共目录
         "user_data_dir": "/home/wlh/.local/share/rime-ls", // 指定用户目录，最好新建一个
         "log_dir": "/home/wlh/.local/share/rime-ls", // 日志目录
-        "max_candidates": 10,
-        "trigger_characters": [],
+        "max_candidates": 10,  // 与 rime 的候选数量配置最好保持一致
+        "trigger_characters": [],  // 为空表示全局开启
       }
     },
 
@@ -32,7 +32,7 @@
 
 没有完全测试过, 理论上其他 LSP 能怎么用就可以怎么用
 
-补充: 通过 `:call CocRequest('rime-ls', 'workspace/executeCommand', { 'command': 'toggle-rime' })`
+补充: 通过 `:call CocRequest('rime-ls', 'workspace/executeCommand', { 'command': 'rime-ls.toggle-rime' })`
 可以手动控制开启和关闭
 
 # TODO

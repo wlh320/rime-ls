@@ -85,19 +85,25 @@ impl Backend {
         }
     }
 
-    async fn notify_work_begin(&self, token: &str, message: &str) {
-        // register
-        let token = NumberOrString::String(String::from(token));
-        self.client
+    async fn create_work_done_progress(&self, token: NumberOrString) -> Result<NumberOrString> {
+        if let Err(e) = self
+            .client
             .send_request::<request::WorkDoneProgressCreate>(WorkDoneProgressCreateParams {
                 token: token.clone(),
             })
             .await
-            .unwrap();
+        {
+            self.client.show_message(MessageType::WARNING, e).await;
+            return Err(tower_lsp::jsonrpc::Error::internal_error());
+        }
+        Ok(token)
+    }
+
+    async fn notify_work_begin(&self, token: NumberOrString, message: &str) {
         // begin
         self.client
             .send_notification::<notification::Progress>(ProgressParams {
-                token: token.clone(),
+                token,
                 value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
                     WorkDoneProgressBegin {
                         title: message.to_string(),
@@ -108,8 +114,7 @@ impl Backend {
             .await;
     }
 
-    async fn notify_work_done(&self, token: &str, message: &str) {
-        let token = NumberOrString::String(String::from(token));
+    async fn notify_work_done(&self, token: NumberOrString, message: &str) {
         self.client
             .send_notification::<notification::Progress>(ProgressParams {
                 token,
@@ -208,7 +213,7 @@ impl Backend {
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         self.client
-            .log_message(MessageType::INFO, "Server initialized")
+            .log_message(MessageType::INFO, "Rime-ls Language Server initialized")
             .await;
 
         // read user configuration
@@ -254,7 +259,10 @@ impl LanguageServer for Backend {
                     all_commit_characters: None,
                 }),
                 execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec!["toggle-rime".to_string()],
+                    commands: vec![
+                        "rime-ls.toggle-rime".to_string(),
+                        "rime-ls.sync-user-data".to_string(),
+                    ],
                     work_done_progress_options: WorkDoneProgressOptions {
                         work_done_progress: Some(true),
                     },
@@ -340,22 +348,31 @@ impl LanguageServer for Backend {
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
-        let command = params.command.as_ref();
+        let command: &str = params.command.as_ref();
+        let token = {
+            match params.work_done_progress_params.work_done_token {
+                Some(token) => token,
+                None => {
+                    let token = NumberOrString::String(command.to_string());
+                    self.create_work_done_progress(token).await?
+                }
+            }
+        };
         match command {
             "rime-ls.toggle-rime" => {
-                self.notify_work_begin(command, command).await;
+                self.notify_work_begin(token.clone(), command).await;
                 let mut config = self.config.write().await;
                 config.enabled = !config.enabled;
                 let status = format!("Rime is {}", if config.enabled { "ON" } else { "OFF" });
-                self.notify_work_done(command, &status).await;
+                self.notify_work_done(token.clone(), &status).await;
                 // return a bool representing if rime-ls is enabled
                 return Ok(Some(Value::from(config.enabled)));
             }
             "rime-ls.sync-user-data" => {
-                self.notify_work_begin(command, command).await;
+                self.notify_work_begin(token.clone(), command).await;
                 // TODO: do it in async way.
                 self.rime.sync_user_data();
-                self.notify_work_done(command, "Rime is Ready.").await;
+                self.notify_work_done(token.clone(), "Rime is Ready.").await;
             }
             _ => {
                 self.client
