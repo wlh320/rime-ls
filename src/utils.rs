@@ -5,6 +5,10 @@ use tower_lsp::lsp_types::Position;
 /// UTF-16 Position -> UTF-8 offset
 pub fn position_to_offset(rope: &Rope, position: Position) -> Option<usize> {
     let (line, col) = (position.line as usize, position.character as usize);
+    // position is at the end of rope
+    if line == rope.len_lines() && col == 0 {
+        return Some(rope.len_chars());
+    }
     (line < rope.len_lines()).then_some(line).and_then(|line| {
         let col8 = rope.line(line).try_utf16_cu_to_char(col).ok()?;
         let offset = rope.try_line_to_char(line).ok()? + col8;

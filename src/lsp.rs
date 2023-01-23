@@ -124,7 +124,6 @@ impl Backend {
         let max_candidates = self.config.read().await.max_candidates;
         let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
         let re = self.regex.read().await;
-        let max_len = max_candidates.to_string().len();
         let rope = self.documents.get(&uri.to_string())?;
 
         // get new input
@@ -186,6 +185,7 @@ impl Backend {
         // return candidates
         let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
         let candidate_to_completion_item = |c: Candidate| -> CompletionItem {
+            let max_len = max_candidates.to_string().len();
             CompletionItem {
                 label: format!("{}. {}", c.order, &c.text),
                 kind: Some(CompletionItemKind::TEXT),
@@ -291,8 +291,8 @@ impl LanguageServer for Backend {
                 text,
             } = change;
             if let Some(Range { start, end }) = range {
-                let s = utils::position_to_offset(&rope, start).map(|e| e.min(rope.len_chars()));
-                let e = utils::position_to_offset(&rope, end).map(|e| e.min(rope.len_chars()));
+                let s = utils::position_to_offset(&rope, start);
+                let e = utils::position_to_offset(&rope, end);
                 if let (Some(s), Some(e)) = (s, e) {
                     rope.remove(s..e);
                     rope.insert(s, &text);
@@ -300,10 +300,10 @@ impl LanguageServer for Backend {
             } else {
                 // text is full content
                 self.on_change(TextDocumentItem {
-                    language_id: String::from("text"),
                     uri: params.text_document.uri.clone(),
-                    text,
+                    language_id: String::from("text"),
                     version: params.text_document.version,
+                    text,
                 })
                 .await
             }
