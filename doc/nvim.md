@@ -71,3 +71,73 @@ cmp.setup {
 
 以上配置进入文件便开启 LSP, 用快捷键切换是否开启补全
 
+## 状态栏显示
+
+since v0.1.2, 可以参考以下配置在 lualine 显示 rime-ls 的当前状态:
+
+```lua
+local M = {}
+
+function M.setup_rime()
+  -- maintain buffer only status
+  vim.b.rime_enabled = false
+  local toggle_rime = function(client_id)
+    vim.lsp.buf_request(0, 'workspace/executeCommand',
+      { command = "rime-ls.toggle-rime" },
+      function(_, result, ctx, _)
+        if ctx.client_id == client_id then
+          vim.b.rime_enabled = result
+        end
+      end
+    )
+  end
+
+  -- setup rime-ls
+  local start_rime = function()
+    local client_id = vim.lsp.start_client({
+      name = "rime-ls",
+      cmd = { 'rime_ls' },
+      init_options = {
+        enabled = false,
+        shared_data_dir = "/usr/share/rime-data",
+        user_data_dir = "/home/wlh/.local/share/rime-ls",
+        log_dir = "/home/wlh/.local/share/rime-ls",
+        max_candidates = 9,
+        trigger_characters = {},
+      },
+    });
+    if client_id then
+      vim.lsp.buf_attach_client(0, client_id)
+      vim.keymap.set('n', '<leader><space>', function() toggle_rime(client_id) end)
+      vim.keymap.set('i', '<C-x>', function() toggle_rime(client_id) end)
+    end
+  end
+
+  -- auto start
+  vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
+    callback = function()
+      start_rime()
+    end,
+    pattern = '*',
+  })
+
+  -- update lualine
+  local function rime_status()
+    if vim.b.rime_enabled then
+      return 'ㄓ'
+    else
+      return ''
+    end
+  end
+
+  require('lualine').setup({
+    sections = {
+      lualine_x = { rime_status, 'encoding', 'fileformat', 'filetype' },
+    }
+  })
+end
+
+return M
+```
+
+例如存为 `lua/rime.lua` ，然后在 `init.lua` 里 `require('rime').setup_rime()`
