@@ -1,42 +1,47 @@
-use crate::consts::{K_BACKSPACE, NT_RE};
+use crate::consts::K_BACKSPACE;
 use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
+use ouroboros::self_referencing;
 use regex::Regex;
+use std::borrow::Cow;
 
-/// regex raw input to groups
-#[derive(Debug)]
-pub struct Input<'s> {
-    pub raw_text: &'s str,
-    pub trigger: Option<&'s str>,
-    pub pinyin: &'s str,
-    pub select: &'s str,
+/// struct that stores matched raw text and its matches
+#[self_referencing]
+pub struct Input {
+    pub raw_text: String,
+    #[borrows(raw_text)]
+    pub pinyin: &'this str,
+    #[borrows(raw_text)]
+    pub select: &'this str,
 }
 
-impl<'s> Input<'s> {
-    pub fn from_str(re: &Regex, text: &'s str) -> Option<Self> {
-        re.captures(text).map(|caps| Input {
-            raw_text: caps.get(0).unwrap().as_str(),
-            trigger: caps.name("tr").map(|c| c.as_str()),
-            pinyin: caps.name("py").unwrap().as_str(),
-            select: caps.name("se").unwrap().as_str(),
+impl Input {
+    /// if matches, take ownership of &str, and self-reference it.
+    pub fn from_str(re: &Regex, text: Cow<str>) -> Option<Self> {
+        re.captures(&text).map(|caps| {
+            let start = caps.get(0).unwrap().start();
+            let raw_text = caps.get(0).unwrap().as_str().to_owned();
+            InputBuilder {
+                raw_text,
+                pinyin_builder: |raw_text| {
+                    let m = caps.name("py").unwrap();
+                    &raw_text[m.start() - start..m.end() - start]
+                },
+                select_builder: |raw_text| {
+                    let m = caps.name("se").unwrap();
+                    &raw_text[m.start() - start..m.end() - start]
+                },
+            }
+            .build()
         })
     }
 }
 
-/// which pattern is used for this input
-#[derive(Debug)]
-pub enum InputKind {
-    NoTrigger,
-    Trigger,
-}
-
-/// cached input state
-#[derive(Debug)]
+/// save input state
 pub struct InputState {
-    pub raw_text: String,
+    pub input: Input,
     pub session_id: usize,
     pub offset: usize,
-    pub kind: InputKind,
 }
 
 pub struct InputResult {
@@ -47,26 +52,20 @@ pub struct InputResult {
 impl InputState {
     /// check if cached input is prefix or suffix of current input
     /// return diff result: Add / Delete / New
-    pub fn new(raw_text: String, session_id: usize, offset: usize, kind: InputKind) -> InputState {
+    pub fn new(input: Input, session_id: usize, offset: usize) -> InputState {
         InputState {
-            raw_text,
+            input,
             session_id,
             offset,
-            kind,
         }
     }
+
     pub fn handle_new_input(
         &self,
-        re: &Regex,
         new_offset: usize,
         new_input: &Input,
         rime: &Rime,
     ) -> Result<InputResult, Box<dyn std::error::Error>> {
-        // TODO: need to parse last input again
-        let last_input = match self.kind {
-            InputKind::NoTrigger => Input::from_str(&NT_RE, &self.raw_text).unwrap(),
-            InputKind::Trigger => Input::from_str(re, &self.raw_text).unwrap(),
-        };
         // new typing
         if self.offset != new_offset {
             rime.destroy_session(self.session_id);
@@ -77,7 +76,7 @@ impl InputState {
         }
         // continue last typing
         // handle pinyin
-        let diff_pinyin = diff(last_input.pinyin, new_input.pinyin);
+        let diff_pinyin = diff(self.input.borrow_pinyin(), new_input.borrow_pinyin());
         match diff_pinyin {
             DiffResult::Add(suffix) => {
                 for key in suffix.bytes() {
@@ -97,8 +96,8 @@ impl InputState {
         // handle selection
         let idx = match diff_pinyin {
             DiffResult::Delete(_) => None,
-            _ if last_input.select.is_empty() && !new_input.select.is_empty() => {
-                Some(new_input.select.parse::<usize>().unwrap())
+            _ if self.input.borrow_select().is_empty() && !new_input.borrow_select().is_empty() => {
+                Some(new_input.borrow_select().parse::<usize>().unwrap())
             }
             _ => None,
         };

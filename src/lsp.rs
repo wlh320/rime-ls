@@ -1,18 +1,18 @@
 use crate::config::{Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
-use crate::input::{Input, InputKind, InputResult, InputState};
+use crate::input::{Input, InputResult, InputState};
 use crate::rime::{Candidate, Rime, RimeResponse};
 use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
 use serde_json::Value;
+use std::borrow::Cow;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
 
-#[derive(Debug)]
 pub struct Backend {
     client: Client,
     rime: Rime,
@@ -135,23 +135,21 @@ impl Backend {
         let line = Position::new(position.line, 0);
         let line_begin = utils::position_to_offset(&rope, line)?;
         let curr_char = utils::position_to_offset(&rope, position)?;
-        let mut kind = InputKind::NoTrigger;
         let new_input = (curr_char <= rope.len_chars()).then(|| {
             let slice = rope.slice(line_begin..curr_char).as_str()?;
             if utils::need_to_check_trigger(is_trigger_set, slice) {
-                kind = InputKind::Trigger;
-                Input::from_str(&re, slice)
+                Input::from_str(&re, Cow::from(slice))
             } else {
-                Input::from_str(&NT_RE, slice)
+                Input::from_str(&NT_RE, Cow::from(slice))
             }
         })??;
-        let new_offset = curr_char - new_input.raw_text.len();
+        let new_offset = curr_char - new_input.borrow_raw_text().len();
 
         // handle new input
         let mut last_state = self.state.entry(uri.to_string()).or_default();
         let InputResult { is_new, select } = match (*last_state).as_ref() {
             Some(state) => state
-                .handle_new_input(&re, new_offset, &new_input, &self.rime)
+                .handle_new_input(new_offset, &new_input, &self.rime)
                 .ok()?,
             None => InputResult {
                 is_new: true,
@@ -159,19 +157,13 @@ impl Backend {
             },
         };
 
-        // update state
+        // get rime session_id
         let session_id = if is_new {
-            let bytes = new_input.pinyin.as_bytes();
+            let bytes = new_input.borrow_pinyin().as_bytes();
             self.rime.new_session_with_keys(bytes).ok()?
         } else {
             (*last_state).as_ref().map(|s| s.session_id).unwrap()
         };
-        *last_state = Some(InputState::new(
-            new_input.raw_text.to_string(),
-            session_id,
-            new_offset,
-            kind,
-        ));
 
         // get candidates from current session
         let RimeResponse {
@@ -184,23 +176,27 @@ impl Backend {
         // prevent deleting puncts before real pinyin input
         let real_offset = new_offset
             + preedit
-                .and_then(|preedit| new_input.pinyin.find(&preedit))
+                .and_then(|preedit| new_input.borrow_pinyin().find(&preedit))
                 .unwrap_or(0);
 
-        // return candidates
+        // candidates to completions
         let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
+        let filter_text = new_input.borrow_raw_text().to_string();
         let candidate_to_completion_item = |c: Candidate| -> CompletionItem {
             let max_len = max_candidates.to_string().len();
             CompletionItem {
                 label: format!("{}. {}", c.order, &c.text),
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
-                filter_text: Some(new_input.raw_text.to_string()),
+                filter_text: Some(filter_text.clone()),
                 sort_text: Some(utils::order_to_sort_text(c.order, max_len)),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
                 ..Default::default()
             }
         };
+        // update input state
+        *last_state = Some(InputState::new(new_input, session_id, new_offset));
+        // return completions
         let mut cand_iter = candidates.into_iter();
         select
             .and_then(|i| cand_iter.nth(i - 1)) // Note: c.order starts from 1
