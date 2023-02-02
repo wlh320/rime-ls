@@ -26,12 +26,6 @@ pub fn offset_to_position(rope: &Rope, offset: usize) -> Option<Position> {
     })
 }
 
-/// int to sort_text string, with leading zero, e.g., 1 -> "z0001"
-pub fn order_to_sort_text(order: usize, len: usize) -> String {
-    // add a 'z' in the beginning
-    format!("z{:0len$}", order, len = len)
-}
-
 pub enum DiffResult<'a> {
     Same,
     Add(&'a str),
@@ -51,12 +45,21 @@ pub fn diff<'s>(old_text: &'s str, new_text: &'s str) -> DiffResult<'s> {
     }
 }
 
+/// int to sort_text string, with leading zero, e.g., 1 -> "z0001"
+#[inline]
+pub fn build_order_to_sort_text(max_candidates: usize) -> impl Fn(usize) -> String {
+    let len = std::iter::successors(Some(max_candidates), |&n| (n >= 10).then_some(n / 10)).count();
+    move |n| format!("z{n:0len$}")
+}
+
 /// return if we need to check the existence of trigger character
+#[inline]
 pub fn need_to_check_trigger(is_trigger_set: bool, line: &str) -> bool {
     is_trigger_set && !AUTO_TRIGGER_RE.is_match(line)
 }
 
 /// convert empty string to None
+#[inline]
 pub fn option_string(s: String) -> Option<String> {
     if s.is_empty() {
         None

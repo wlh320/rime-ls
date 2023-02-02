@@ -7,7 +7,6 @@ use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
 use serde_json::Value;
-use std::borrow::Cow;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -128,21 +127,23 @@ impl Backend {
     async fn get_completions(&self, uri: Url, position: Position) -> Option<Vec<CompletionItem>> {
         let max_candidates = self.config.read().await.max_candidates;
         let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
-        let re = self.regex.read().await;
-        let rope = self.documents.get(&uri.to_string())?;
 
         // get new input
-        let line = Position::new(position.line, 0);
-        let line_begin = utils::position_to_offset(&rope, line)?;
+        let rope = self.documents.get(&uri.to_string())?;
+        let line_pos = Position::new(position.line, 0);
+        let line_begin = utils::position_to_offset(&rope, line_pos)?;
         let curr_char = utils::position_to_offset(&rope, position)?;
-        let new_input = (curr_char <= rope.len_chars()).then(|| {
-            let slice = rope.slice(line_begin..curr_char).as_str()?;
-            if utils::need_to_check_trigger(is_trigger_set, slice) {
-                Input::from_str(&re, Cow::from(slice))
-            } else {
-                Input::from_str(&NT_RE, Cow::from(slice))
-            }
-        })??;
+        let new_input = {
+            let re = self.regex.read().await;
+            (curr_char <= rope.len_chars()).then(|| {
+                let slice = rope.slice(line_begin..curr_char).as_str()?;
+                if utils::need_to_check_trigger(is_trigger_set, slice) {
+                    Input::from_str(&re, slice)
+                } else {
+                    Input::from_str(&NT_RE, slice)
+                }
+            })??
+        };
         let new_offset = curr_char - new_input.borrow_raw_text().len();
 
         // handle new input
@@ -182,14 +183,14 @@ impl Backend {
         // candidates to completions
         let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
         let filter_text = new_input.borrow_raw_text().to_string();
-        let candidate_to_completion_item = |c: Candidate| -> CompletionItem {
-            let max_len = max_candidates.to_string().len();
+        let order_to_sort_text = utils::build_order_to_sort_text(max_candidates);
+        let candidate_to_completion_item = move |c: Candidate| -> CompletionItem {
             CompletionItem {
                 label: format!("{}. {}", c.order, &c.text),
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
                 filter_text: Some(filter_text.clone()),
-                sort_text: Some(utils::order_to_sort_text(c.order, max_len)),
+                sort_text: Some(order_to_sort_text(c.order)),
                 text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
                 ..Default::default()
             }

@@ -3,7 +3,6 @@ use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
 use ouroboros::self_referencing;
 use regex::Regex;
-use std::borrow::Cow;
 
 /// struct that stores matched raw text and its matches
 #[self_referencing]
@@ -17,8 +16,8 @@ pub struct Input {
 
 impl Input {
     /// if matches, take ownership of &str, and self-reference it.
-    pub fn from_str(re: &Regex, text: Cow<str>) -> Option<Self> {
-        re.captures(&text).map(|caps| {
+    pub fn from_str(re: &Regex, text: &str) -> Option<Self> {
+        re.captures(text).map(|caps| {
             let start = caps.get(0).unwrap().start();
             let raw_text = caps.get(0).unwrap().as_str().to_owned();
             InputBuilder {
