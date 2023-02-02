@@ -227,3 +227,31 @@ end
 
 return M
 ```
+
+## 空格键补全
+
+为了取得与外部输入法更加相似的体验，可以通过配置 cmp 实现用空格键补全，参考配置如下：
+
+```lua
+-- use space to confirm completion like system IME
+local cmp = require('cmp')
+local orig_cmp_mapping = require('cmp.config').mapping
+local function toggle_space_confirm()
+  if vim.g.rime_enabled then
+    cmp.setup.buffer({
+      mapping = cmp.mapping.preset.insert {
+        ['<Space>'] = cmp.mapping.confirm {
+          behavior = cmp.ConfirmBehavior.Replace,
+          select = true,
+        },
+      }
+    })
+  else
+    cmp.setup.buffer({ mapping = orig_cmp_mapping })
+  end
+end
+```
+
+为了不影响正常的代码补全，以上代码只在 rime-ls 开启时启用该配置，
+配合上一节配置里的 `toggle_rime` 函数使用
+
