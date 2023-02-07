@@ -1,7 +1,7 @@
 use crate::config::{Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
 use crate::input::{Input, InputResult, InputState};
-use crate::rime::{Candidate, Rime, RimeResponse};
+use crate::rime::{Candidate, Rime, RimeError, RimeResponse};
 use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
@@ -33,13 +33,20 @@ impl Backend {
         }
     }
 
-    async fn init(&self) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    async fn init(&self) -> std::result::Result<(), RimeError> {
         let config = self.config.read().await;
-        let shared_data_dir = config.shared_data_dir.to_str().unwrap();
-        let user_data_dir = config.user_data_dir.to_str().unwrap();
-        let log_dir = config.log_dir.to_str().unwrap();
+        // expand tilde
+        let shared_data_dir = utils::expand_tilde(&config.shared_data_dir);
+        let user_data_dir = utils::expand_tilde(&config.user_data_dir);
+        let log_dir = utils::expand_tilde(&config.log_dir);
+        // to str
+        let shared_data_dir = shared_data_dir.to_str().unwrap();
+        let user_data_dir = user_data_dir.to_str().unwrap();
+        let log_dir = log_dir.to_str().unwrap();
+        // compile regex
         let trigger_characters = &config.trigger_characters;
         self.compile_regex(trigger_characters).await;
+        // init rime
         self.rime.init(shared_data_dir, user_data_dir, log_dir)
     }
 
@@ -149,13 +156,8 @@ impl Backend {
         // handle new input
         let mut last_state = self.state.entry(uri.to_string()).or_default();
         let InputResult { is_new, select } = match (*last_state).as_ref() {
-            Some(state) => state
-                .handle_new_input(new_offset, &new_input, &self.rime)
-                .ok()?,
-            None => InputResult {
-                is_new: true,
-                select: None,
-            },
+            Some(state) => state.handle_new_input(new_offset, &new_input, &self.rime),
+            None => InputResult::default(),
         };
 
         // get rime session_id
@@ -170,10 +172,16 @@ impl Backend {
         let RimeResponse {
             preedit,
             candidates,
-        } = self
+        } = match self
             .rime
             .get_response_from_session(session_id, max_candidates)
-            .ok()?;
+        {
+            Ok(r) => r,
+            Err(e) => {
+                self.client.log_message(MessageType::ERROR, e).await;
+                None?
+            }
+        };
         // prevent deleting puncts before real pinyin input
         let real_offset = new_offset
             + preedit
@@ -222,7 +230,8 @@ impl LanguageServer for Backend {
                 .await;
         }
         // init rime
-        if (self.init().await).is_err() {
+        if let Err(e) = self.init().await {
+            self.client.log_message(MessageType::ERROR, e).await;
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
         // set LSP triggers

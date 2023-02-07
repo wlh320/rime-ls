@@ -48,6 +48,15 @@ pub struct InputResult {
     pub select: Option<usize>,
 }
 
+impl Default for InputResult {
+    fn default() -> Self {
+        InputResult {
+            is_new: true,
+            select: None,
+        }
+    }
+}
+
 impl InputState {
     /// check if cached input is prefix or suffix of current input
     /// return diff result: Add / Delete / New
@@ -64,14 +73,11 @@ impl InputState {
         new_offset: usize,
         new_input: &Input,
         rime: &Rime,
-    ) -> Result<InputResult, Box<dyn std::error::Error>> {
+    ) -> InputResult {
         // new typing
         if self.offset != new_offset {
             rime.destroy_session(self.session_id);
-            return Ok(InputResult {
-                is_new: true,
-                select: None,
-            });
+            return InputResult::default();
         }
         // continue last typing
         // handle pinyin
@@ -101,9 +107,9 @@ impl InputState {
             _ => None,
         };
 
-        Ok(InputResult {
+        InputResult {
             is_new: matches!(diff_pinyin, DiffResult::New),
             select: idx,
-        })
+        }
     }
 }

@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use crate::consts::AUTO_TRIGGER_RE;
 use ropey::Rope;
 use tower_lsp::lsp_types::Position;
@@ -66,4 +68,14 @@ pub fn option_string(s: String) -> Option<String> {
     } else {
         Some(s)
     }
+}
+
+/// expand tilde in path, panics when home dir does not exist
+pub fn expand_tilde(path: impl AsRef<Path>) -> PathBuf {
+    if !path.as_ref().starts_with("~") {
+        return path.as_ref().into();
+    }
+    let base_dirs = directories::BaseDirs::new().unwrap();
+    let home_dir = base_dirs.home_dir();
+    home_dir.join(path.as_ref().strip_prefix("~").unwrap())
 }

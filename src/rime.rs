@@ -1,8 +1,8 @@
 use crate::consts::{K_PGDN, K_PGUP};
 use librime_sys as librime;
-use std::error::Error;
 use std::ffi::{CStr, CString, NulError};
 use std::sync::RwLock;
+use thiserror::Error;
 
 macro_rules! rime_struct_init {
     ($type:ty) => {{
@@ -25,6 +25,17 @@ pub struct Candidate {
     pub text: String,
     pub comment: String,
     pub order: usize,
+}
+
+/// Rime Error Type
+#[derive(Error, Debug)]
+pub enum RimeError {
+    #[error("null pointer when talking with librime")]
+    NullPointer(#[from] NulError),
+    #[error("fail to get candidates")]
+    GetCandidatesFailed,
+    #[error("session {0} not found")]
+    SessionNotFound(usize),
 }
 
 #[derive(Debug)]
@@ -57,7 +68,7 @@ impl Rime {
         shared_data_dir: &str,
         user_data_dir: &str,
         log_dir: &str,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), RimeError> {
         let mut traits = rime_struct_init!(librime::RimeTraits);
 
         // set dirs
@@ -103,13 +114,18 @@ impl Rime {
         session_id: usize,
         context: &mut librime::RimeContext,
         max_candidates: usize,
-    ) -> Result<Vec<Candidate>, Box<dyn Error>> {
+    ) -> Result<Vec<Candidate>, RimeError> {
         let res = RwLock::new(Vec::new());
         let mut count_pgdn = 0;
         while context.menu.num_candidates != 0 {
             for i in 0..context.menu.num_candidates {
                 let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
-                let text = unsafe { CStr::from_ptr(candidate.text).to_str()?.to_owned() };
+                let text = unsafe {
+                    CStr::from_ptr(candidate.text)
+                        .to_str()
+                        .map_err(|_| RimeError::GetCandidatesFailed)?
+                        .to_owned()
+                };
                 let comment = unsafe {
                     (!candidate.comment.is_null())
                         .then(|| match CStr::from_ptr(candidate.comment).to_str() {
@@ -150,7 +166,7 @@ impl Rime {
                 librime::RimeProcessKey(session_id, K_PGUP, 0);
             }
         }
-        Ok(res.into_inner()?)
+        res.into_inner().map_err(|_| RimeError::GetCandidatesFailed)
     }
 
     fn get_commit_text(&self, session_id: usize) -> Option<String> {
@@ -184,10 +200,10 @@ impl Rime {
         &self,
         session_id: usize,
         max_candidates: usize,
-    ) -> Result<RimeResponse, Box<dyn Error>> {
+    ) -> Result<RimeResponse, RimeError> {
         unsafe {
             if librime::RimeFindSession(session_id) == 0 {
-                Err("No such session")?
+                return Err(RimeError::SessionNotFound(session_id));
             }
         }
         // create context
@@ -224,7 +240,7 @@ impl Rime {
         &self,
         keys: Vec<u8>,
         max_candidates: usize,
-    ) -> Result<Vec<Candidate>, Box<dyn Error>> {
+    ) -> Result<Vec<Candidate>, RimeError> {
         let session_id = self.new_session_with_keys(&keys)?;
         let res = self.get_response_from_session(session_id, max_candidates)?;
         self.destroy_session(session_id);
