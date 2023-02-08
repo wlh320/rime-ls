@@ -72,8 +72,8 @@ impl InputState {
         &self,
         new_offset: usize,
         new_input: &Input,
-        rime: &Rime,
     ) -> InputResult {
+        let rime = Rime::global();
         // new typing
         if self.offset != new_offset {
             rime.destroy_session(self.session_id);

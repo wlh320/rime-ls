@@ -1,7 +1,7 @@
 use crate::config::{Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
 use crate::input::{Input, InputResult, InputState};
-use crate::rime::{Candidate, Rime, RimeError, RimeResponse};
+use crate::rime::{Candidate, Rime, RimeError, RimeResponse, RIME};
 use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
@@ -14,7 +14,6 @@ use tower_lsp::{Client, LanguageServer};
 
 pub struct Backend {
     client: Client,
-    rime: Rime,
     documents: DashMap<String, Rope>,
     state: DashMap<String, Option<InputState>>,
     config: RwLock<Config>,
@@ -25,7 +24,6 @@ impl Backend {
     pub fn new(client: Client) -> Backend {
         Backend {
             client,
-            rime: Rime::new(),
             documents: DashMap::new(),
             state: DashMap::new(),
             config: RwLock::new(Config::default()),
@@ -47,7 +45,11 @@ impl Backend {
         let trigger_characters = &config.trigger_characters;
         self.compile_regex(trigger_characters).await;
         // init rime
-        self.rime.init(shared_data_dir, user_data_dir, log_dir)
+        if RIME.get().is_none() {
+            let rime = Rime::init(shared_data_dir, user_data_dir, log_dir)?;
+            RIME.set(rime).ok();
+        }
+        Ok(())
     }
 
     async fn on_change(&self, params: TextDocumentItem) {
@@ -134,6 +136,7 @@ impl Backend {
     async fn get_completions(&self, uri: Url, position: Position) -> Option<Vec<CompletionItem>> {
         let max_candidates = self.config.read().await.max_candidates;
         let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
+        let rime = Rime::global();
 
         // get new input
         let rope = self.documents.get(&uri.to_string())?;
@@ -156,14 +159,14 @@ impl Backend {
         // handle new input
         let mut last_state = self.state.entry(uri.to_string()).or_default();
         let InputResult { is_new, select } = match (*last_state).as_ref() {
-            Some(state) => state.handle_new_input(new_offset, &new_input, &self.rime),
+            Some(state) => state.handle_new_input(new_offset, &new_input),
             None => InputResult::default(),
         };
 
         // get rime session_id
         let session_id = if is_new {
             let bytes = new_input.borrow_pinyin().as_bytes();
-            self.rime.new_session_with_keys(bytes).ok()?
+            rime.new_session_with_keys(bytes).ok()?
         } else {
             (*last_state).as_ref().map(|s| s.session_id).unwrap()
         };
@@ -172,10 +175,7 @@ impl Backend {
         let RimeResponse {
             preedit,
             candidates,
-        } = match self
-            .rime
-            .get_response_from_session(session_id, max_candidates)
-        {
+        } = match rime.get_response_from_session(session_id, max_candidates) {
             Ok(r) => r,
             Err(e) => {
                 self.client.log_message(MessageType::ERROR, e).await;
@@ -279,7 +279,6 @@ impl LanguageServer for Backend {
     }
 
     async fn shutdown(&self) -> Result<()> {
-        self.rime.destroy();
         Ok(())
     }
 
@@ -377,7 +376,7 @@ impl LanguageServer for Backend {
             "rime-ls.sync-user-data" => {
                 self.notify_work_begin(token.clone(), command).await;
                 // TODO: do it in async way.
-                self.rime.sync_user_data();
+                Rime::global().sync_user_data();
                 self.notify_work_done(token.clone(), "Rime is Ready.").await;
             }
             _ => {

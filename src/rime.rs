@@ -1,5 +1,6 @@
 use crate::consts::{K_PGDN, K_PGUP};
 use librime_sys as librime;
+use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
 use std::sync::RwLock;
 use thiserror::Error;
@@ -13,12 +14,13 @@ macro_rules! rime_struct_init {
     }};
 }
 
+/// global rime instance
+pub static RIME: OnceCell<Rime> = OnceCell::new();
+
 /// just call unsafe c ffi function simply
 /// TODO: make a good rust wrapper
 #[derive(Debug)]
-pub struct Rime {
-    is_init: RwLock<bool>,
-}
+pub struct Rime;
 
 #[derive(Debug)]
 pub struct Candidate {
@@ -32,7 +34,7 @@ pub struct Candidate {
 pub enum RimeError {
     #[error("null pointer when talking with librime")]
     NullPointer(#[from] NulError),
-    #[error("fail to get candidates")]
+    #[error("failed to get candidates")]
     GetCandidatesFailed,
     #[error("session {0} not found")]
     SessionNotFound(usize),
@@ -46,29 +48,25 @@ pub struct RimeResponse {
     pub candidates: Vec<Candidate>,
 }
 
-impl Rime {
-    pub fn new() -> Self {
-        Rime {
-            is_init: RwLock::new(false),
-        }
+impl Drop for Rime {
+    fn drop(&mut self) {
+        // FIXME: it seems that staic variables will not be dorpped?
+        self.destroy();
+        println!("rime exit");
     }
+}
 
-    #[allow(dead_code)]
-    pub fn version() -> Option<&'static str> {
-        unsafe {
-            let api = librime::rime_get_api();
-            (*api)
-                .get_version
-                .and_then(|f| CStr::from_ptr(f()).to_str().ok())
-        }
+impl Rime {
+    /// get global rime instance
+    pub fn global() -> &'static Rime {
+        RIME.get().expect("Rime is not initialized")
     }
 
     pub fn init(
-        &self,
         shared_data_dir: &str,
         user_data_dir: &str,
         log_dir: &str,
-    ) -> Result<(), RimeError> {
+    ) -> Result<Self, RimeError> {
         let mut traits = rime_struct_init!(librime::RimeTraits);
 
         // set dirs
@@ -96,13 +94,11 @@ impl Rime {
                 librime::RimeJoinMaintenanceThread();
             }
         }
-
-        *self.is_init.write().unwrap() = true;
-        Ok(())
+        Ok(Rime)
     }
 
     pub fn destroy(&self) {
-        if *self.is_init.read().unwrap() {
+        if RIME.get().is_some() {
             unsafe {
                 librime::RimeFinalize();
             }
@@ -289,8 +285,7 @@ fn test_get_candidates() {
     let log_dir = "/tmp";
 
     // init
-    let rime = Rime::new();
-    rime.init(shared_data_dir, user_data_dir, log_dir).unwrap();
+    let rime = Rime::init(shared_data_dir, user_data_dir, log_dir).unwrap();
     // simulate typing
     let max_candidates = 10;
     let keys = vec![b'w', b'l', b'h'];
