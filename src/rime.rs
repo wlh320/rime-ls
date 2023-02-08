@@ -96,6 +96,15 @@ impl Rime {
                 librime::RimeSyncUserData();
                 librime::RimeJoinMaintenanceThread();
             }
+            // retake pointer
+            let _ = CString::from_raw(traits.shared_data_dir as *mut i8);
+            let _ = CString::from_raw(traits.user_data_dir as *mut i8);
+            #[cfg(not(feature = "no_log_dir"))]
+            let _ = CString::from_raw(traits.log_dir as *mut i8);
+            let _ = CString::from_raw(traits.distribution_name as *mut i8);
+            let _ = CString::from_raw(traits.distribution_code_name as *mut i8);
+            let _ = CString::from_raw(traits.distribution_version as *mut i8);
+            let _ = CString::from_raw(traits.app_name as *mut i8);
         }
         Ok(Rime)
     }
@@ -249,8 +258,9 @@ impl Rime {
     pub fn new_session_with_keys(&self, keys: &[u8]) -> Result<usize, NulError> {
         let session_id = unsafe { librime::RimeCreateSession() };
         unsafe {
-            let ck = CString::new(keys)?;
-            librime::RimeSimulateKeySequence(session_id, ck.into_raw());
+            let ck = CString::new(keys)?.into_raw();
+            librime::RimeSimulateKeySequence(session_id, ck);
+            let _ = CString::from_raw(ck);
         }
         Ok(session_id)
     }
