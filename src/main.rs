@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, str::FromStr};
 
 use rime_ls::lsp::Backend;
+use rime_ls::rime::Rime;
 use tokio::net::{TcpListener, TcpStream};
 use tower_lsp::{LspService, Server};
 
@@ -35,6 +36,17 @@ fn usage() {
 
 #[tokio::main]
 async fn main() {
+    // set handler to finalize rime
+    // TODO: it is ugly
+    ctrlc::set_handler(move || {
+        println!("Ctrl-C pressed.");
+        if Rime::is_initialized() {
+            Rime::global().destroy();
+        }
+        std::process::exit(0); // 0?
+    })
+    .expect("Error setting Ctrl-C handler");
+
     let mut args = std::env::args();
     match args.nth(1).as_deref() {
         None => run_stdio().await,

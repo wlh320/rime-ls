@@ -5,7 +5,7 @@ mod consts;
 /// handle user input
 mod input;
 /// librime C FFI
-mod rime;
+pub mod rime;
 /// helper functions
 mod utils;
 

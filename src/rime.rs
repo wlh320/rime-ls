@@ -50,9 +50,8 @@ pub struct RimeResponse {
 
 impl Drop for Rime {
     fn drop(&mut self) {
-        // FIXME: it seems that staic variables will not be dorpped?
+        // FIXME: it seems that static once_cell variables will not be dropped?
         self.destroy();
-        println!("rime exit");
     }
 }
 
@@ -60,6 +59,10 @@ impl Rime {
     /// get global rime instance
     pub fn global() -> &'static Rime {
         RIME.get().expect("Rime is not initialized")
+    }
+
+    pub fn is_initialized() -> bool {
+        RIME.get().is_some()
     }
 
     pub fn init(
