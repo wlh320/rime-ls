@@ -12,8 +12,8 @@ local start_rime = function()
     init_options = {
       enabled = false, -- 初始关闭, 手动开启
       shared_data_dir = "/usr/share/rime-data", -- rime 公共目录
-      user_data_dir = "/home/wlh/.local/share/rime-ls", -- 指定用户目录, 最好新建一个
-      log_dir = "/home/wlh/.local/share/rime-ls", -- 日志目录
+      user_data_dir = "~/.local/share/rime-ls", -- 指定用户目录, 最好新建一个
+      log_dir = "~/.local/share/rime-ls", -- 日志目录
       max_candidates = 10, -- 与 rime 的候选数量配置最好保持一致
       trigger_characters = {}, -- 为空表示全局开启
     },
@@ -100,8 +100,8 @@ function M.setup_rime()
       init_options = {
         enabled = false,
         shared_data_dir = "/usr/share/rime-data",
-        user_data_dir = "/home/wlh/.local/share/rime-ls",
-        log_dir = "/home/wlh/.local/share/rime-ls",
+        user_data_dir = "~/.local/share/rime-ls",
+        log_dir = "~/.local/share/rime-ls",
         max_candidates = 9,
         trigger_characters = {},
       },
@@ -215,8 +215,8 @@ A language server for librime
     init_options = {
       enabled = vim.g.rime_enabled,
       shared_data_dir = "/usr/share/rime-data",
-      user_data_dir = "/home/wlh/.local/share/rime-ls",
-      log_dir = "/home/wlh/.local/share/rime-ls",
+      user_data_dir = "~/.local/share/rime-ls",
+      log_dir = "~/.local/share/rime-ls",
       max_candidates = 9,
       trigger_characters = {},
     },
@@ -254,4 +254,8 @@ end
 
 为了不影响正常的代码补全，以上代码只在 rime-ls 开启时启用该配置，
 配合上一节配置里的 `toggle_rime` 函数使用
+
+## 通过 TCP 远程使用
+
+将运行命令修改为 `cmd = vim.lsp.rpc.connect('<ip>', <port>)`
 

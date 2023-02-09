@@ -1,7 +1,7 @@
 use crate::config::{Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
 use crate::input::{Input, InputResult, InputState};
-use crate::rime::{Candidate, Rime, RimeError, RimeResponse, RIME};
+use crate::rime::{Candidate, Rime, RimeError, RimeResponse};
 use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
@@ -45,11 +45,14 @@ impl Backend {
         let trigger_characters = &config.trigger_characters;
         self.compile_regex(trigger_characters).await;
         // init rime
-        if RIME.get().is_none() {
-            let rime = Rime::init(shared_data_dir, user_data_dir, log_dir)?;
-            RIME.set(rime).ok();
+        match Rime::init(shared_data_dir, user_data_dir, log_dir) {
+            Err(RimeError::AlreadyInitialized) => {
+                let info = "Use an initialized rime instance.";
+                self.client.show_message(MessageType::INFO, info).await;
+                Ok(())
+            }
+            r => r,
         }
-        Ok(())
     }
 
     async fn on_change(&self, params: TextDocumentItem) {
@@ -217,10 +220,6 @@ impl Backend {
 #[tower_lsp::async_trait]
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        self.client
-            .log_message(MessageType::INFO, "Rime-ls Language Server initialized")
-            .await;
-
         // read user configuration
         if let Some(init_options) = params.initialization_options {
             self.init_config(init_options).await;
@@ -234,6 +233,10 @@ impl LanguageServer for Backend {
             self.client.log_message(MessageType::ERROR, e).await;
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
+        // notify client
+        self.client
+            .log_message(MessageType::INFO, "Rime-ls Language Server initialized")
+            .await;
         // set LSP triggers
         let triggers = {
             let mut triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec(); // pages
@@ -241,7 +244,7 @@ impl LanguageServer for Backend {
             triggers.extend_from_slice(user_triggers);
             triggers
         };
-
+        // return
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
                 name: "rime-ls".to_string(),

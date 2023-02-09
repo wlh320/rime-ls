@@ -15,7 +15,7 @@ macro_rules! rime_struct_init {
 }
 
 /// global rime instance
-pub static RIME: OnceCell<Rime> = OnceCell::new();
+static RIME: OnceCell<Rime> = OnceCell::new();
 
 /// just call unsafe c ffi function simply
 /// TODO: make a good rust wrapper
@@ -34,6 +34,8 @@ pub struct Candidate {
 pub enum RimeError {
     #[error("null pointer when talking with librime")]
     NullPointer(#[from] NulError),
+    #[error("rime is already initialized")]
+    AlreadyInitialized,
     #[error("failed to get candidates")]
     GetCandidatesFailed,
     #[error("session {0} not found")]
@@ -51,7 +53,7 @@ pub struct RimeResponse {
 impl Drop for Rime {
     fn drop(&mut self) {
         // FIXME: it seems that static once_cell variables will not be dropped?
-        self.destroy();
+        // self.destroy();
     }
 }
 
@@ -69,7 +71,10 @@ impl Rime {
         shared_data_dir: &str,
         user_data_dir: &str,
         log_dir: &str,
-    ) -> Result<Self, RimeError> {
+    ) -> Result<(), RimeError> {
+        if Rime::is_initialized() {
+            Err(RimeError::AlreadyInitialized)?
+        }
         let mut traits = rime_struct_init!(librime::RimeTraits);
 
         // set dirs
@@ -106,7 +111,8 @@ impl Rime {
             let _ = CString::from_raw(traits.distribution_version as *mut i8);
             let _ = CString::from_raw(traits.app_name as *mut i8);
         }
-        Ok(Rime)
+        RIME.set(Rime).unwrap();
+        Ok(())
     }
 
     pub fn destroy(&self) {
@@ -298,7 +304,8 @@ fn test_get_candidates() {
     let log_dir = "/tmp";
 
     // init
-    let rime = Rime::init(shared_data_dir, user_data_dir, log_dir).unwrap();
+    Rime::init(shared_data_dir, user_data_dir, log_dir).unwrap();
+    let rime = Rime::global();
     // simulate typing
     let max_candidates = 10;
     let keys = vec![b'w', b'l', b'h'];

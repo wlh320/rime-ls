@@ -66,7 +66,6 @@ async fn main() {
         tokio::signal::ctrl_c().await.unwrap();
         println!("Ctrl-C pressed.");
         tx.send(()).unwrap();
-        Ok::<(), tokio::io::Error>(())
     });
     // run
     if let Err(e) = run(rx).await {

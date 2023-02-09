@@ -12,14 +12,14 @@
     // ......
 
     "rime-ls": {
-      "command": "/home/wlh/coding/rime-ls/target/release/rime_ls",
+      "command": "/usr/bin/rime_ls",
       "filetypes": ["text"],
       "initializationOptions": {
         "enabled": true,
         "shared_data_dir": "/usr/share/rime-data", // rime 公共目录
-        "user_data_dir": "/home/wlh/.local/share/rime-ls", // 指定用户目录，最好新建一个
-        "log_dir": "/home/wlh/.local/share/rime-ls", // 日志目录
-        "max_candidates": 10,  // 与 rime 的候选数量配置最好保持一致
+        "user_data_dir": "~/.local/share/rime-ls", // 指定用户目录，最好新建一个
+        "log_dir": "~/.local/share/rime-ls", // 日志目录
+        "max_candidates": 9,  // 与 rime 的候选数量配置最好保持一致
         "trigger_characters": [],  // 为空表示全局开启
       }
     },
