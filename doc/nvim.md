@@ -171,24 +171,28 @@ function M.setup_rime()
   })
 
   -- add rime-ls to lspconfig as a custom server
+  -- see `:h lspconfig-new`
   local lspconfig = require('lspconfig')
-  local configs = require('lspconfig/configs')
-  configs.rime_ls = {
-    default_config = {
-      name = "rime_ls",
-      cmd = { 'rime_ls' },
-      filetypes = { '*' },
-      single_file_support = true,
-    },
-    settings = {},
-    docs = {
-      description = [[
+  local configs = require('lspconfig.configs')
+  if not configs.rime_ls then
+    configs.rime_ls = {
+      default_config = {
+        name = "rime_ls",
+        cmd = { 'rime_ls' },
+        -- cmd = vim.lsp.rpc.connect('127.0.0.1', 9257),
+        filetypes = { '*' },
+        single_file_support = true,
+      },
+      settings = {},
+      docs = {
+        description = [[
 https://www.github.com/wlh320/rime-ls
 
 A language server for librime
-]]     ,
+]],
+      }
     }
-  }
+  end
 
   local rime_on_attach = function(client, _)
     local toggle_rime = function()
