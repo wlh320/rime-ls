@@ -1,4 +1,4 @@
-use crate::consts::{K_BACKSPACE, NT_RE};
+use crate::consts::{K_BACKSPACE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
@@ -209,7 +209,7 @@ impl Rime {
             librime::RimeGetContext(session_id, &mut context);
         }
         let preedit = self.get_joined_preedit(&context);
-        let submitted = preedit.map(|s| NT_RE.replace_all(s.as_ref(), "").to_string());
+        let submitted = preedit.map(|s| RAW_RE.replace_all(s.as_ref(), "").to_string());
 
         // if has commit text, return as the only candidate
         let candidates = if let Some(text) = self.get_commit_text(session_id) {
@@ -232,18 +232,8 @@ impl Rime {
         })
     }
 
-    pub fn new_session(&self) -> usize {
+    pub fn create_session(&self) -> usize {
         unsafe { librime::RimeCreateSession() }
-    }
-
-    pub fn new_session_with_keys(&self, keys: &[u8]) -> Result<usize, NulError> {
-        let session_id = unsafe { librime::RimeCreateSession() };
-        unsafe {
-            let ck = CString::new(keys)?.into_raw();
-            librime::RimeSimulateKeySequence(session_id, ck);
-            let _ = CString::from_raw(ck);
-        }
-        Ok(session_id)
     }
 
     pub fn process_key(&self, session_id: usize, key: i32) {
@@ -302,7 +292,10 @@ fn test_get_candidates() {
     // simulate typing
     let max_candidates = 10;
     let keys = vec![b'w', b'l', b'h'];
-    let session_id = rime.new_session_with_keys(&keys).unwrap();
+    let session_id = rime.create_session();
+    for key in keys {
+        rime.process_key(session_id, key as i32);
+    }
     let res = rime
         .get_response_from_session(session_id, max_candidates)
         .unwrap();

@@ -62,7 +62,7 @@ impl InputState {
 
     pub fn handle_first_state(new_input: &Input) -> InputResult {
         let rime = Rime::global();
-        let session_id = rime.new_session();
+        let session_id = rime.create_session();
         Self::handle_new_typing(session_id, new_input)
     }
 
