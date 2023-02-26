@@ -1,4 +1,4 @@
-use crate::consts::{K_PGDN, K_PGUP};
+use crate::consts::{K_BACKSPACE, NT_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
@@ -44,8 +44,8 @@ pub enum RimeError {
 
 #[derive(Debug)]
 pub struct RimeResponse {
-    /// length of input accepted by rime
-    pub preedit: Option<String>,
+    /// submitted input
+    pub submitted: String,
     /// list of candidate provided by rime
     pub candidates: Vec<Candidate>,
 }
@@ -118,6 +118,7 @@ impl Rime {
     pub fn destroy(&self) {
         if RIME.get().is_some() {
             unsafe {
+                librime::RimeCleanupAllSessions();
                 librime::RimeFinalize();
             }
         }
@@ -125,62 +126,44 @@ impl Rime {
 
     pub fn get_candidates_from_context(
         &self,
-        session_id: usize,
-        context: &mut librime::RimeContext,
-        max_candidates: usize,
+        context: &librime::RimeContext,
     ) -> Result<Vec<Candidate>, RimeError> {
         let res = RwLock::new(Vec::new());
-        let mut count_pgdn = 0;
-        while context.menu.num_candidates != 0 {
-            for i in 0..context.menu.num_candidates {
-                let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
-                let text = unsafe {
-                    CStr::from_ptr(candidate.text)
-                        .to_str()
-                        .map_err(|_| RimeError::GetCandidatesFailed)?
-                        .to_owned()
-                };
-                let comment = unsafe {
-                    (!candidate.comment.is_null())
-                        .then(|| match CStr::from_ptr(candidate.comment).to_str() {
-                            Ok(s) => s.to_string(),
-                            Err(_) => "".to_string(),
-                        })
-                        .unwrap_or_default()
-                };
-                let order = res.read().unwrap().len() + 1;
-                res.write().unwrap().push(Candidate {
-                    text,
-                    comment,
-                    order,
-                });
-                if res.read().unwrap().len() >= max_candidates {
-                    break;
-                }
-            }
-
-            if res.read().unwrap().len() >= max_candidates {
-                break;
-            }
-            if context.menu.is_last_page != 0 {
-                break;
-            }
-            // pagedown
-            unsafe {
-                if librime::RimeProcessKey(session_id, K_PGDN, 0) == 0 {
-                    break;
-                }
-                count_pgdn += 1;
-                librime::RimeGetContext(session_id, context);
-            }
-        }
-        // page_up to resume session
-        for _ in 0..count_pgdn {
-            unsafe {
-                librime::RimeProcessKey(session_id, K_PGUP, 0);
-            }
+        for i in 0..context.menu.num_candidates {
+            let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
+            let text = unsafe {
+                CStr::from_ptr(candidate.text)
+                    .to_str()
+                    .map_err(|_| RimeError::GetCandidatesFailed)?
+                    .to_owned()
+            };
+            let comment = unsafe {
+                (!candidate.comment.is_null())
+                    .then(|| match CStr::from_ptr(candidate.comment).to_str() {
+                        Ok(s) => s.to_string(),
+                        Err(_) => "".to_string(),
+                    })
+                    .unwrap_or_default()
+            };
+            let order = res.read().unwrap().len() + 1;
+            res.write().unwrap().push(Candidate {
+                text,
+                comment,
+                order,
+            });
         }
         res.into_inner().map_err(|_| RimeError::GetCandidatesFailed)
+    }
+
+    pub fn get_raw_input(&self, session_id: usize) -> Option<String> {
+        let api = unsafe { librime::rime_get_api() };
+        (!api.is_null())
+            .then(|| unsafe { *api })
+            .and_then(|api| api.get_input)
+            .and_then(|get_input| unsafe {
+                let ptr = get_input(session_id);
+                CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_owned())
+            })
     }
 
     fn get_commit_text(&self, session_id: usize) -> Option<String> {
@@ -213,7 +196,7 @@ impl Rime {
     pub fn get_response_from_session(
         &self,
         session_id: usize,
-        max_candidates: usize,
+        _max_candidates: usize,
     ) -> Result<RimeResponse, RimeError> {
         unsafe {
             if librime::RimeFindSession(session_id) == 0 {
@@ -226,6 +209,8 @@ impl Rime {
             librime::RimeGetContext(session_id, &mut context);
         }
         let preedit = self.get_joined_preedit(&context);
+        let submitted = preedit.map(|s| NT_RE.replace_all(s.as_ref(), "").to_string());
+
         // if has commit text, return as the only candidate
         let candidates = if let Some(text) = self.get_commit_text(session_id) {
             Ok(vec![Candidate {
@@ -235,30 +220,20 @@ impl Rime {
             }])
         } else {
             // else get candidates
-            // TODO: based on total num_candidates, does not obey rime's pages
-            // FIXME: ugly code
-            self.get_candidates_from_context(session_id, &mut context, max_candidates)
+            self.get_candidates_from_context(&context)
         };
         // free context
         unsafe {
             librime::RimeFreeContext(&mut context);
         }
         candidates.map(|candidates| RimeResponse {
-            preedit,
+            submitted: submitted.unwrap_or_default(),
             candidates,
         })
     }
 
-    #[allow(dead_code)]
-    pub fn get_candidates_from_keys(
-        &self,
-        keys: Vec<u8>,
-        max_candidates: usize,
-    ) -> Result<Vec<Candidate>, RimeError> {
-        let session_id = self.new_session_with_keys(&keys)?;
-        let res = self.get_response_from_session(session_id, max_candidates)?;
-        self.destroy_session(session_id);
-        Ok(res.candidates)
+    pub fn new_session(&self) -> usize {
+        unsafe { librime::RimeCreateSession() }
     }
 
     pub fn new_session_with_keys(&self, keys: &[u8]) -> Result<usize, NulError> {
@@ -271,6 +246,26 @@ impl Rime {
         Ok(session_id)
     }
 
+    pub fn process_key(&self, session_id: usize, key: i32) {
+        unsafe {
+            if librime::RimeFindSession(session_id) != 0 {
+                librime::RimeProcessKey(session_id, key, 0);
+            }
+        }
+    }
+
+    pub fn process_str(&self, session_id: usize, keys: &str) {
+        for key in keys.bytes() {
+            self.process_key(session_id, key as i32);
+        }
+    }
+
+    pub fn delete_keys(&self, session_id: usize, len: usize) {
+        for _ in 0..len {
+            self.process_key(session_id, K_BACKSPACE);
+        }
+    }
+
     pub fn destroy_session(&self, session_id: usize) {
         unsafe {
             if librime::RimeFindSession(session_id) != 0 {
@@ -279,11 +274,9 @@ impl Rime {
         }
     }
 
-    pub fn process_key(&self, session_id: usize, key: i32) {
+    pub fn clear_composition(&self, session_id: usize) {
         unsafe {
-            if librime::RimeFindSession(session_id) != 0 {
-                librime::RimeProcessKey(session_id, key, 0);
-            }
+            librime::RimeClearComposition(session_id);
         }
     }
 
@@ -309,8 +302,13 @@ fn test_get_candidates() {
     // simulate typing
     let max_candidates = 10;
     let keys = vec![b'w', b'l', b'h'];
-    let cands = rime.get_candidates_from_keys(keys, max_candidates).unwrap();
-    assert_eq!(cands.len(), max_candidates);
+    let session_id = rime.new_session_with_keys(&keys).unwrap();
+    let res = rime
+        .get_response_from_session(session_id, max_candidates)
+        .unwrap();
+    assert!(res.candidates.len() != 0);
+    rime.destroy_session(session_id);
+
     // destroy
     rime.destroy();
 }

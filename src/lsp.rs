@@ -161,22 +161,17 @@ impl Backend {
 
         // handle new input
         let mut last_state = self.state.entry(uri.to_string()).or_default();
-        let InputResult { is_new, select } = match (*last_state).as_ref() {
+        let InputResult {
+            session_id,
+            raw_input,
+        } = match (*last_state).as_ref() {
             Some(state) => state.handle_new_input(new_offset, &new_input),
-            None => InputResult::default(),
-        };
-
-        // get rime session_id
-        let session_id = if is_new {
-            let bytes = new_input.borrow_pinyin().as_bytes();
-            rime.new_session_with_keys(bytes).ok()?
-        } else {
-            (*last_state).as_ref().map(|s| s.session_id).unwrap()
+            None => InputState::handle_first_state(&new_input),
         };
 
         // get candidates from current session
         let RimeResponse {
-            preedit,
+            submitted,
             candidates,
         } = match rime.get_response_from_session(session_id, max_candidates) {
             Ok(r) => r,
@@ -185,35 +180,37 @@ impl Backend {
                 None?
             }
         };
+
         // prevent deleting puncts before real pinyin input
         let real_offset = new_offset
-            + preedit
-                .and_then(|preedit| new_input.borrow_pinyin().find(&preedit))
+            + raw_input
+                .and_then(|rime_raw_input| new_input.borrow_pinyin().find(&rime_raw_input))
                 .unwrap_or(0);
 
         // candidates to completions
         let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
         let filter_text = new_input.borrow_raw_text().to_string();
         let order_to_sort_text = utils::build_order_to_sort_text(max_candidates);
+
         let candidate_to_completion_item = move |c: Candidate| -> CompletionItem {
             CompletionItem {
-                label: format!("{}. {}", c.order, &c.text),
+                label: format!("{}. {}{}", c.order, &submitted, &c.text),
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
                 filter_text: Some(filter_text.clone()),
                 sort_text: Some(order_to_sort_text(c.order)),
-                text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, c.text))),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(
+                    range,
+                    submitted.clone() + &c.text,
+                ))),
                 ..Default::default()
             }
         };
         // update input state
         *last_state = Some(InputState::new(new_input, session_id, new_offset));
         // return completions
-        let mut cand_iter = candidates.into_iter();
-        select
-            .and_then(|i| cand_iter.nth(i - 1)) // Note: c.order starts from 1
-            .map(|c| vec![candidate_to_completion_item(c)])
-            .or_else(|| Some(cand_iter.map(candidate_to_completion_item).collect()))
+        let cand_iter = candidates.into_iter();
+        Some(cand_iter.map(candidate_to_completion_item).collect())
     }
 }
 

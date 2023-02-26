@@ -1,4 +1,3 @@
-use crate::consts::K_BACKSPACE;
 use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
 use ouroboros::self_referencing;
@@ -44,17 +43,10 @@ pub struct InputState {
 }
 
 pub struct InputResult {
-    pub is_new: bool,
-    pub select: Option<usize>,
-}
-
-impl Default for InputResult {
-    fn default() -> Self {
-        InputResult {
-            is_new: true,
-            select: None,
-        }
-    }
+    /// session id after handle new input
+    pub session_id: usize,
+    /// raw input from rime after handle new input
+    pub raw_input: Option<String>,
 }
 
 impl InputState {
@@ -68,48 +60,58 @@ impl InputState {
         }
     }
 
-    pub fn handle_new_input(
-        &self,
-        new_offset: usize,
-        new_input: &Input,
-    ) -> InputResult {
+    pub fn handle_first_state(new_input: &Input) -> InputResult {
+        let rime = Rime::global();
+        let session_id = rime.new_session();
+        Self::handle_new_typing(session_id, new_input)
+    }
+
+    fn handle_new_typing(session_id: usize, new_input: &Input) -> InputResult {
+        let rime = Rime::global();
+        rime.process_str(session_id, new_input.borrow_pinyin());
+        rime.process_str(session_id, new_input.borrow_select());
+        let raw_input = rime.get_raw_input(session_id);
+
+        InputResult {
+            session_id,
+            raw_input,
+        }
+    }
+
+    pub fn handle_new_input(&self, new_offset: usize, new_input: &Input) -> InputResult {
         let rime = Rime::global();
         // new typing
         if self.offset != new_offset {
-            rime.destroy_session(self.session_id);
-            return InputResult::default();
+            rime.clear_composition(self.session_id);
+            return Self::handle_new_typing(self.session_id, new_input);
         }
         // continue last typing
         // handle pinyin
         let diff_pinyin = diff(self.input.borrow_pinyin(), new_input.borrow_pinyin());
         match diff_pinyin {
-            DiffResult::Add(suffix) => {
-                for key in suffix.bytes() {
-                    rime.process_key(self.session_id, key as i32);
-                }
-            }
-            DiffResult::Delete(suffix) => {
-                for _ in 0..suffix.len() {
-                    rime.process_key(self.session_id, K_BACKSPACE);
-                }
-            }
+            DiffResult::Add(suffix) => rime.process_str(self.session_id, suffix),
+            DiffResult::Delete(suffix) => rime.delete_keys(self.session_id, suffix.len()),
             DiffResult::New => {
-                rime.destroy_session(self.session_id);
+                rime.clear_composition(self.session_id);
+                rime.process_str(self.session_id, new_input.borrow_pinyin());
             }
             _ => (),
         }
-        // handle selection
-        let idx = match diff_pinyin {
-            DiffResult::Delete(_) => None,
-            _ if self.input.borrow_select().is_empty() && !new_input.borrow_select().is_empty() => {
-                Some(new_input.borrow_select().parse::<usize>().unwrap())
+        let raw_input = rime.get_raw_input(self.session_id);
+        // handle select
+        let diff_select = diff(self.input.borrow_select(), new_input.borrow_select());
+        match diff_select {
+            DiffResult::Add(suffix) => rime.process_str(self.session_id, suffix),
+            DiffResult::Delete(suffix) => rime.delete_keys(self.session_id, suffix.len()),
+            DiffResult::New => {
+                rime.delete_keys(self.session_id, self.input.borrow_select().len());
+                rime.process_str(self.session_id, new_input.borrow_select());
             }
-            _ => None,
-        };
-
+            _ => (),
+        }
         InputResult {
-            is_new: matches!(diff_pinyin, DiffResult::New),
-            select: idx,
+            session_id: self.session_id,
+            raw_input,
         }
     }
 }
