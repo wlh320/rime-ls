@@ -173,7 +173,7 @@ impl Backend {
         let RimeResponse {
             submitted,
             candidates,
-        } = match rime.get_response_from_session(session_id, max_candidates) {
+        } = match rime.get_response_from_session(session_id) {
             Ok(r) => r,
             Err(e) => {
                 self.client.log_message(MessageType::ERROR, e).await;

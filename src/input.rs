@@ -80,37 +80,38 @@ impl InputState {
 
     pub fn handle_new_input(&self, new_offset: usize, new_input: &Input) -> InputResult {
         let rime = Rime::global();
+        let session_id = rime.find_session(self.session_id);
         // new typing
-        if self.offset != new_offset {
-            rime.clear_composition(self.session_id);
-            return Self::handle_new_typing(self.session_id, new_input);
+        if self.offset != new_offset || self.session_id != session_id {
+            rime.clear_composition(session_id);
+            return Self::handle_new_typing(session_id, new_input);
         }
         // continue last typing
         // handle pinyin
         let diff_pinyin = diff(self.input.borrow_pinyin(), new_input.borrow_pinyin());
         match diff_pinyin {
-            DiffResult::Add(suffix) => rime.process_str(self.session_id, suffix),
-            DiffResult::Delete(suffix) => rime.delete_keys(self.session_id, suffix.len()),
+            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
+            DiffResult::Delete(suffix) => rime.delete_keys(session_id, suffix.len()),
             DiffResult::New => {
-                rime.clear_composition(self.session_id);
-                rime.process_str(self.session_id, new_input.borrow_pinyin());
+                rime.clear_composition(session_id);
+                rime.process_str(session_id, new_input.borrow_pinyin());
             }
             _ => (),
         }
-        let raw_input = rime.get_raw_input(self.session_id);
+        let raw_input = rime.get_raw_input(session_id);
         // handle select
         let diff_select = diff(self.input.borrow_select(), new_input.borrow_select());
         match diff_select {
-            DiffResult::Add(suffix) => rime.process_str(self.session_id, suffix),
-            DiffResult::Delete(suffix) => rime.delete_keys(self.session_id, suffix.len()),
+            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
+            DiffResult::Delete(suffix) => rime.delete_keys(session_id, suffix.len()),
             DiffResult::New => {
-                rime.delete_keys(self.session_id, self.input.borrow_select().len());
-                rime.process_str(self.session_id, new_input.borrow_select());
+                rime.delete_keys(session_id, self.input.borrow_select().len());
+                rime.process_str(session_id, new_input.borrow_select());
             }
             _ => (),
         }
         InputResult {
-            session_id: self.session_id,
+            session_id,
             raw_input,
         }
     }

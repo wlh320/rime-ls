@@ -2,7 +2,7 @@ use crate::consts::{K_BACKSPACE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
-use std::sync::RwLock;
+use std::sync::Mutex;
 use thiserror::Error;
 
 macro_rules! rime_struct_init {
@@ -44,7 +44,7 @@ pub enum RimeError {
 
 #[derive(Debug)]
 pub struct RimeResponse {
-    /// submitted input
+    /// partially submitted input
     pub submitted: String,
     /// list of candidate provided by rime
     pub candidates: Vec<Candidate>,
@@ -128,7 +128,7 @@ impl Rime {
         &self,
         context: &librime::RimeContext,
     ) -> Result<Vec<Candidate>, RimeError> {
-        let res = RwLock::new(Vec::new());
+        let res = Mutex::new(Vec::new());
         for i in 0..context.menu.num_candidates {
             let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
             let text = unsafe {
@@ -145,8 +145,8 @@ impl Rime {
                     })
                     .unwrap_or_default()
             };
-            let order = res.read().unwrap().len() + 1;
-            res.write().unwrap().push(Candidate {
+            let order = (i + 1) as usize;
+            res.lock().unwrap().push(Candidate {
                 text,
                 comment,
                 order,
@@ -193,11 +193,7 @@ impl Rime {
         }
     }
 
-    pub fn get_response_from_session(
-        &self,
-        session_id: usize,
-        _max_candidates: usize,
-    ) -> Result<RimeResponse, RimeError> {
+    pub fn get_response_from_session(&self, session_id: usize) -> Result<RimeResponse, RimeError> {
         unsafe {
             if librime::RimeFindSession(session_id) == 0 {
                 return Err(RimeError::SessionNotFound(session_id));
@@ -234,6 +230,16 @@ impl Rime {
 
     pub fn create_session(&self) -> usize {
         unsafe { librime::RimeCreateSession() }
+    }
+
+    /// if session_id does not exist, create a new one
+    pub fn find_session(&self, session_id: usize) -> usize {
+        unsafe {
+            match librime::RimeFindSession(session_id) {
+                0 => librime::RimeCreateSession(),
+                _ => session_id,
+            }
+        }
     }
 
     pub fn process_key(&self, session_id: usize, key: i32) {
@@ -290,15 +296,12 @@ fn test_get_candidates() {
     Rime::init(shared_data_dir, user_data_dir, log_dir).unwrap();
     let rime = Rime::global();
     // simulate typing
-    let max_candidates = 10;
     let keys = vec![b'w', b'l', b'h'];
     let session_id = rime.create_session();
     for key in keys {
         rime.process_key(session_id, key as i32);
     }
-    let res = rime
-        .get_response_from_session(session_id, max_candidates)
-        .unwrap();
+    let res = rime.get_response_from_session(session_id).unwrap();
     assert!(res.candidates.len() != 0);
     rime.destroy_session(session_id);
 
