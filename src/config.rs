@@ -23,6 +23,9 @@ pub struct Config {
     /// if not empty, only trigger completion with special keys
     #[serde(default = "default_trigger_characters")]
     pub trigger_characters: Vec<String>,
+    /// if set, completion request with this string will trigger「方案選單」
+    #[serde(default = "default_schema_trigger_character")]
+    pub schema_trigger_character: String,
 }
 
 /// settings that can be tweaked during running
@@ -34,6 +37,8 @@ pub struct Settings {
     pub max_candidates: Option<usize>,
     /// if not empty, only trigger completion with special keys
     pub trigger_characters: Option<Vec<String>>,
+    /// if set, completion request with this string will trigger「方案選單」
+    pub schema_trigger_character: Option<String>,
 }
 
 impl Default for Config {
@@ -45,6 +50,7 @@ impl Default for Config {
             log_dir: default_log_dir(),
             max_candidates: default_max_candidates(),
             trigger_characters: default_trigger_characters(),
+            schema_trigger_character: default_schema_trigger_character(),
         }
     }
 }
@@ -58,7 +64,7 @@ fn default_max_candidates() -> usize {
 }
 
 fn default_trigger_characters() -> Vec<String> {
-    vec![]
+    Vec::default()
 }
 
 fn default_shared_data_dir() -> PathBuf {
@@ -75,6 +81,10 @@ fn default_log_dir() -> PathBuf {
     proj_dirs.cache_dir().to_path_buf()
 }
 
+fn default_schema_trigger_character() -> String {
+    String::default()
+}
+
 #[test]
 fn test_default_config() {
     let config: Config = Default::default();
@@ -84,4 +94,8 @@ fn test_default_config() {
     assert_eq!(config.log_dir, default_log_dir());
     assert_eq!(config.max_candidates, default_max_candidates());
     assert_eq!(config.trigger_characters, default_trigger_characters());
+    assert_eq!(
+        config.schema_trigger_character,
+        default_schema_trigger_character()
+    );
 }

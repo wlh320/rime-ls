@@ -1,4 +1,4 @@
-use crate::consts::{K_BACKSPACE, RAW_RE};
+use crate::consts::{KEY_BACKSPACE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
@@ -258,7 +258,7 @@ impl Rime {
 
     pub fn delete_keys(&self, session_id: usize, len: usize) {
         for _ in 0..len {
-            self.process_key(session_id, K_BACKSPACE);
+            self.process_key(session_id, KEY_BACKSPACE);
         }
     }
 

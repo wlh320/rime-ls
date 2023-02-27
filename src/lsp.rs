@@ -94,6 +94,9 @@ impl Backend {
             self.compile_regex(&v).await;
             config.trigger_characters = v;
         }
+        if let Some(v) = settings.schema_trigger_character {
+            config.schema_trigger_character = v;
+        }
     }
 
     async fn create_work_done_progress(&self, token: NumberOrString) -> Result<NumberOrString> {
@@ -137,17 +140,16 @@ impl Backend {
     }
 
     async fn get_completions(&self, uri: Url, position: Position) -> Option<Vec<CompletionItem>> {
-        let max_candidates = self.config.read().await.max_candidates;
-        let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
-        let rime = Rime::global();
-
         // get new input
         let rope = self.documents.get(&uri.to_string())?;
-        let line_pos = Position::new(position.line, 0);
-        let line_begin = utils::position_to_offset(&rope, line_pos)?;
+        let line_begin = {
+            let line_pos = Position::new(position.line, 0);
+            utils::position_to_offset(&rope, line_pos)?
+        };
         let curr_char = utils::position_to_offset(&rope, position)?;
         let new_input = {
             let re = self.regex.read().await;
+            let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
             (curr_char <= rope.len_chars()).then(|| {
                 let slice = rope.slice(line_begin..curr_char).as_str()?;
                 if utils::need_to_check_trigger(is_trigger_set, slice) {
@@ -165,11 +167,15 @@ impl Backend {
             session_id,
             raw_input,
         } = match (*last_state).as_ref() {
-            Some(state) => state.handle_new_input(new_offset, &new_input),
+            Some(state) => {
+                let schema_trigger = &self.config.read().await.schema_trigger_character;
+                state.handle_new_input(new_offset, &new_input, schema_trigger)
+            }
             None => InputState::handle_first_state(&new_input),
         };
 
         // get candidates from current session
+        let rime = Rime::global();
         let RimeResponse {
             submitted,
             candidates,
@@ -190,8 +196,10 @@ impl Backend {
         // candidates to completions
         let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
         let filter_text = new_input.borrow_raw_text().to_string();
-        let order_to_sort_text = utils::build_order_to_sort_text(max_candidates);
-
+        let order_to_sort_text = {
+            let max_candidates = self.config.read().await.max_candidates;
+            utils::build_order_to_sort_text(max_candidates)
+        };
         let candidate_to_completion_item = move |c: Candidate| -> CompletionItem {
             CompletionItem {
                 label: format!("{}. {}{}", c.order, &submitted, &c.text),
@@ -206,11 +214,12 @@ impl Backend {
                 ..Default::default()
             }
         };
+
         // update input state
         *last_state = Some(InputState::new(new_input, session_id, new_offset));
         // return completions
-        let cand_iter = candidates.into_iter();
-        Some(cand_iter.map(candidate_to_completion_item).collect())
+        let item_iter = candidates.into_iter().map(candidate_to_completion_item);
+        Some(item_iter.collect())
     }
 }
 

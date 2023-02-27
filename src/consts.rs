@@ -19,4 +19,6 @@ pub static RAW_RE: Lazy<Regex> = Lazy::new(|| Regex::new(RAW_PTN).unwrap());
 pub static AUTO_TRIGGER_RE: Lazy<Regex> = Lazy::new(|| Regex::new(AUTO_TRIGGER_PTN).unwrap());
 
 // keycodes
-pub const K_BACKSPACE: i32 = 0xff08;
+// note: run `xmodmap -pk` in shell
+pub const KEY_BACKSPACE: i32 = 0xff08;
+pub const KEY_F4: i32 = 0xffc1;

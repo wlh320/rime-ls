@@ -1,3 +1,4 @@
+use crate::consts::KEY_F4;
 use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
 use ouroboros::self_referencing;
@@ -78,13 +79,32 @@ impl InputState {
         }
     }
 
-    pub fn handle_new_input(&self, new_offset: usize, new_input: &Input) -> InputResult {
+    fn handle_schema(session_id: usize) -> InputResult {
+        let rime = Rime::global();
+        rime.process_key(session_id, KEY_F4);
+        let raw_input = rime.get_raw_input(session_id);
+        InputResult {
+            session_id,
+            raw_input,
+        }
+    }
+
+    pub fn handle_new_input(
+        &self,
+        new_offset: usize,
+        new_input: &Input,
+        schema_trigger: &str,
+    ) -> InputResult {
         let rime = Rime::global();
         let session_id = rime.find_session(self.session_id);
         // new typing
         if self.offset != new_offset || self.session_id != session_id {
             rime.clear_composition(session_id);
-            return Self::handle_new_typing(session_id, new_input);
+            if !schema_trigger.is_empty() && new_input.borrow_pinyin() == &schema_trigger {
+                return Self::handle_schema(session_id);
+            } else {
+                return Self::handle_new_typing(session_id, new_input);
+            }
         }
         // continue last typing
         // handle pinyin
@@ -94,7 +114,11 @@ impl InputState {
             DiffResult::Delete(suffix) => rime.delete_keys(session_id, suffix.len()),
             DiffResult::New => {
                 rime.clear_composition(session_id);
-                rime.process_str(session_id, new_input.borrow_pinyin());
+                if !schema_trigger.is_empty() && new_input.borrow_pinyin() == &schema_trigger {
+                    rime.process_key(session_id, KEY_F4);
+                } else {
+                    rime.process_str(session_id, new_input.borrow_pinyin());
+                }
             }
             _ => (),
         }
