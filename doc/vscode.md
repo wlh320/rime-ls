@@ -30,6 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
 			log_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 日志目录
 			max_candidates: 10,
 			trigger_characters: [],
+			schema_trigger_character: "&",
 		}
 	};
 	console.log(clientOptions);

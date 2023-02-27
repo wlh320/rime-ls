@@ -201,16 +201,18 @@ impl Backend {
             utils::build_order_to_sort_text(max_candidates)
         };
         let candidate_to_completion_item = move |c: Candidate| -> CompletionItem {
+            let text = submitted.clone() + &c.text;
+            let label = match c.order {
+                0 => text.to_string(),
+                _ => format!("{}. {}", c.order, &text),
+            };
             CompletionItem {
-                label: format!("{}. {}{}", c.order, &submitted, &c.text),
+                label,
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
                 filter_text: Some(filter_text.clone()),
                 sort_text: Some(order_to_sort_text(c.order)),
-                text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(
-                    range,
-                    submitted.clone() + &c.text,
-                ))),
+                text_edit: Some(CompletionTextEdit::Edit(TextEdit::new(range, text))),
                 ..Default::default()
             }
         };
@@ -352,13 +354,12 @@ impl LanguageServer for Backend {
         let position = params.text_document_position.position;
         // TODO: Is it necessary to spawn another thread?
         let completions = self.get_completions(uri, position).await;
-        match completions {
-            None => Ok(completions.map(CompletionResponse::Array)),
-            Some(items) => Ok(Some(CompletionResponse::List(CompletionList {
+        Ok(completions.map(|items| {
+            CompletionResponse::List(CompletionList {
                 is_incomplete: true,
                 items,
-            }))),
-        }
+            })
+        }))
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {
