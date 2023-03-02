@@ -41,6 +41,7 @@ pub struct InputState {
     pub input: Input,
     pub session_id: usize,
     pub offset: usize,
+    pub is_incomplete: bool,
 }
 
 pub struct InputResult {
@@ -53,11 +54,12 @@ pub struct InputResult {
 impl InputState {
     /// check if cached input is prefix or suffix of current input
     /// return diff result: Add / Delete / New
-    pub fn new(input: Input, session_id: usize, offset: usize) -> InputState {
+    pub fn new(input: Input, session_id: usize, offset: usize, is_incomplete: bool) -> InputState {
         InputState {
             input,
             session_id,
             offset,
+            is_incomplete,
         }
     }
 
@@ -98,7 +100,7 @@ impl InputState {
         let rime = Rime::global();
         let session_id = rime.find_session(self.session_id);
         // new typing
-        if self.offset != new_offset || self.session_id != session_id {
+        if self.offset != new_offset || self.session_id != session_id || !self.is_incomplete {
             rime.clear_composition(session_id);
             if !schema_trigger.is_empty() && new_input.borrow_pinyin() == &schema_trigger {
                 return Self::handle_schema(session_id);

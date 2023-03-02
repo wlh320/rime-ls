@@ -1,4 +1,4 @@
-use crate::consts::{KEY_BACKSPACE, RAW_RE};
+use crate::consts::{KEY_BACKSPACE, KEY_ESCAPE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
@@ -44,6 +44,8 @@ pub enum RimeError {
 
 #[derive(Debug)]
 pub struct RimeResponse {
+    /// if this input is incomplete
+    pub is_incomplete: bool,
     /// partially submitted input
     pub submitted: String,
     /// list of candidate provided by rime
@@ -127,7 +129,7 @@ impl Rime {
     pub fn get_candidates_from_context(
         &self,
         context: &librime::RimeContext,
-    ) -> Result<Vec<Candidate>, RimeError> {
+    ) -> Result<Option<Vec<Candidate>>, RimeError> {
         let res = Mutex::new(Vec::new());
         for i in 0..context.menu.num_candidates {
             let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
@@ -152,7 +154,9 @@ impl Rime {
                 order,
             });
         }
-        res.into_inner().map_err(|_| RimeError::GetCandidatesFailed)
+        res.into_inner()
+            .map(|v| if v.is_empty() { None } else { Some(v) })
+            .map_err(|_| RimeError::GetCandidatesFailed)
     }
 
     pub fn get_raw_input(&self, session_id: usize) -> Option<String> {
@@ -204,26 +208,39 @@ impl Rime {
         unsafe {
             librime::RimeGetContext(session_id, &mut context);
         }
+        // get partially submitted text
         let preedit = self.get_joined_preedit(&context);
-        let submitted = preedit.map(|s| RAW_RE.replace_all(s.as_ref(), "").to_string());
-
-        // if has commit text, return as the only candidate
-        let candidates = if let Some(text) = self.get_commit_text(session_id) {
-            Ok(vec![Candidate {
-                text,
-                comment: "".to_string(),
-                order: 0,
-            }])
-        } else {
-            // else get candidates
-            self.get_candidates_from_context(&context)
+        let submitted = preedit
+            .map(|s| RAW_RE.replace_all(s.as_ref(), "").to_string())
+            .unwrap_or_default();
+        // get candidates
+        // if vec is empty but we have commit text, return it as the only candidate
+        // else return an empty vec
+        let mut is_incomplete = true;
+        let candidates = {
+            let some_candidates = self.get_candidates_from_context(&context);
+            some_candidates.map(|candidates| {
+                candidates
+                    .or_else(|| {
+                        self.get_commit_text(session_id).map(|text| {
+                            is_incomplete = false;
+                            vec![Candidate {
+                                text,
+                                comment: "".to_string(),
+                                order: 0,
+                            }]
+                        })
+                    })
+                    .unwrap_or_default()
+            })
         };
         // free context
         unsafe {
             librime::RimeFreeContext(&mut context);
         }
         candidates.map(|candidates| RimeResponse {
-            submitted: submitted.unwrap_or_default(),
+            is_incomplete,
+            submitted,
             candidates,
         })
     }
@@ -272,6 +289,7 @@ impl Rime {
 
     pub fn clear_composition(&self, session_id: usize) {
         unsafe {
+            self.process_key(session_id, KEY_ESCAPE);
             librime::RimeClearComposition(session_id);
         }
     }

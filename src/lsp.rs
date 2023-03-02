@@ -139,7 +139,7 @@ impl Backend {
             .await;
     }
 
-    async fn get_completions(&self, uri: Url, position: Position) -> Option<Vec<CompletionItem>> {
+    async fn get_completions(&self, uri: Url, position: Position) -> Option<CompletionList> {
         // get new input
         let rope = self.documents.get(&uri.to_string())?;
         let line_begin = {
@@ -177,6 +177,7 @@ impl Backend {
         // get candidates from current session
         let rime = Rime::global();
         let RimeResponse {
+            is_incomplete,
             submitted,
             candidates,
         } = match rime.get_response_from_session(session_id) {
@@ -218,10 +219,18 @@ impl Backend {
         };
 
         // update input state
-        *last_state = Some(InputState::new(new_input, session_id, new_offset));
+        *last_state = Some(InputState::new(
+            new_input,
+            session_id,
+            new_offset,
+            is_incomplete,
+        ));
         // return completions
         let item_iter = candidates.into_iter().map(candidate_to_completion_item);
-        Some(item_iter.collect())
+        Some(CompletionList {
+            is_incomplete,
+            items: item_iter.collect(),
+        })
     }
 }
 
@@ -354,12 +363,7 @@ impl LanguageServer for Backend {
         let position = params.text_document_position.position;
         // TODO: Is it necessary to spawn another thread?
         let completions = self.get_completions(uri, position).await;
-        Ok(completions.map(|items| {
-            CompletionResponse::List(CompletionList {
-                is_incomplete: true,
-                items,
-            })
-        }))
+        Ok(completions.map(CompletionResponse::List))
     }
 
     async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<Value>> {

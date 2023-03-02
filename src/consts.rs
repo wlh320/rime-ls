@@ -22,3 +22,4 @@ pub static AUTO_TRIGGER_RE: Lazy<Regex> = Lazy::new(|| Regex::new(AUTO_TRIGGER_P
 // note: run `xmodmap -pk` in shell
 pub const KEY_BACKSPACE: i32 = 0xff08;
 pub const KEY_F4: i32 = 0xffc1;
+pub const KEY_ESCAPE: i32 = 0xff1b;

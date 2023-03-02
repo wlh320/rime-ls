@@ -26,13 +26,14 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 > 第一次启动时 rime 需要做大量工作, 可能会很慢
 
 1. 下载 Release 或自己从源码编译
-1. 将编译好的二进制文件放在喜欢的目录下
-2. 配置 LSP 客戶端, 例如:
+2. 将编译好的二进制文件放在喜欢的目录下
+3. 配置 LSP 客戶端, 例如:
     - [neovim + nvim-cmp](doc/nvim.md)
     - [vim + coc.nvim](doc/vim.md)
     - [vscode](doc/vscode.md)
-3. 默认輸入拼音, 就可以看到补全提示
-4. 可以通过改变配置控制补全行为
+4. 像配置其他 Rime 输入法一样在 rime-ls 的用户目录进行配置
+5. 輸入拼音, 就可以看到补全提示
+6. 可以通过修改 rime-ls 的配置项控制补全行为
 
 ## Build
 
@@ -77,8 +78,7 @@ index a53dd2c..e51a63e 100644
 >
 > 使用前备份自己的数据, 避免因作者对 rime API 理解不到位可能造成的数据损失
 
-目前 rime-ls 还不能拿到补全的反馈, 向 rime 提交选择的汉字, 所以自身的用户词库总是空的.
-但可以通过 rime 的 sync 功能将系统中已安装的 rime 输入法的词库同步过来.
+可以通过 rime 的 sync 功能将系统中已安装的 rime 输入法的词库同步过来.
 
 如需同步词库, 可以在 rime-ls 自己的用户目录下的 `installation.yaml`
 添加`sync_dir: "/<existing user data dir>/sync"` 配置项,
