@@ -29,6 +29,19 @@ pub struct Candidate {
     pub order: usize,
 }
 
+impl Candidate {
+    fn new(text: String, comment: Option<String>, order: Option<usize>) -> Candidate {
+        Candidate {
+            text,
+            comment: comment.unwrap_or_default(),
+            order: order.unwrap_or_default(),
+        }
+    }
+    fn from_text(text: String) -> Candidate {
+        Self::new(text, None, None)
+    }
+}
+
 /// Rime Error Type
 #[derive(Error, Debug)]
 pub enum RimeError {
@@ -129,7 +142,7 @@ impl Rime {
     pub fn get_candidates_from_context(
         &self,
         context: &librime::RimeContext,
-    ) -> Result<Option<Vec<Candidate>>, RimeError> {
+    ) -> Result<Vec<Candidate>, RimeError> {
         let res = Mutex::new(Vec::new());
         for i in 0..context.menu.num_candidates {
             let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
@@ -154,9 +167,7 @@ impl Rime {
                 order,
             });
         }
-        res.into_inner()
-            .map(|v| if v.is_empty() { None } else { Some(v) })
-            .map_err(|_| RimeError::GetCandidatesFailed)
+        res.into_inner().map_err(|_| RimeError::GetCandidatesFailed)
     }
 
     pub fn get_raw_input(&self, session_id: usize) -> Option<String> {
@@ -213,27 +224,21 @@ impl Rime {
         let submitted = preedit
             .map(|s| RAW_RE.replace_all(s.as_ref(), "").to_string())
             .unwrap_or_default();
-        // get candidates
+        // note: must call it to consume commit text
+        let commit_text = self.get_commit_text(session_id);
+        let mut is_incomplete = true;
+        // get candidates vec
         // if vec is empty but we have commit text, return it as the only candidate
         // else return an empty vec
-        let mut is_incomplete = true;
-        let candidates = {
-            let some_candidates = self.get_candidates_from_context(&context);
-            some_candidates.map(|candidates| {
-                candidates
-                    .or_else(|| {
-                        self.get_commit_text(session_id).map(|text| {
-                            is_incomplete = false;
-                            vec![Candidate {
-                                text,
-                                comment: "".to_string(),
-                                order: 0,
-                            }]
-                        })
-                    })
-                    .unwrap_or_default()
-            })
-        };
+        let candidates = self.get_candidates_from_context(&context).map(|v| {
+            (!v.is_empty())
+                .then_some(v)
+                .or_else(|| {
+                    is_incomplete = false;
+                    commit_text.map(|text| vec![Candidate::from_text(text)])
+                })
+                .unwrap_or_default()
+        });
         // free context
         unsafe {
             librime::RimeFreeContext(&mut context);
