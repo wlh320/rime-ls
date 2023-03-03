@@ -75,7 +75,6 @@ impl Backend {
     }
 
     async fn apply_settings(&self, params: Value) {
-        let mut config = self.config.write().await;
         let settings = match serde_json::from_value::<Settings>(params) {
             Ok(s) => s,
             Err(e) => {
@@ -84,6 +83,7 @@ impl Backend {
             }
         };
         // TODO: any better ideas?
+        let mut config = self.config.write().await;
         if let Some(v) = settings.enabled {
             config.enabled = v;
         }
@@ -149,10 +149,10 @@ impl Backend {
         let curr_char = utils::position_to_offset(&rope, position)?;
         let new_input = {
             let re = self.regex.read().await;
-            let is_trigger_set = !self.config.read().await.trigger_characters.is_empty();
+            let has_trigger = !self.config.read().await.trigger_characters.is_empty();
             (curr_char <= rope.len_chars()).then(|| {
                 let slice = rope.slice(line_begin..curr_char).as_str()?;
-                if utils::need_to_check_trigger(is_trigger_set, slice) {
+                if utils::need_to_check_trigger(has_trigger, slice) {
                     Input::from_str(&re, slice)
                 } else {
                     Input::from_str(&NT_RE, slice)

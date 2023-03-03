@@ -56,8 +56,8 @@ pub fn build_order_to_sort_text(max_candidates: usize) -> impl Fn(usize) -> Stri
 
 /// return if we need to check the existence of trigger character
 #[inline]
-pub fn need_to_check_trigger(is_trigger_set: bool, line: &str) -> bool {
-    is_trigger_set && !AUTO_TRIGGER_RE.is_match(line)
+pub fn need_to_check_trigger(has_trigger: bool, line: &str) -> bool {
+    has_trigger && !AUTO_TRIGGER_RE.is_match(line)
 }
 
 /// convert empty string to None

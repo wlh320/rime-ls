@@ -38,22 +38,21 @@ impl Input {
 
 /// save input state
 pub struct InputState {
-    pub input: Input,
-    pub session_id: usize,
-    pub offset: usize,
-    pub is_incomplete: bool,
+    input: Input,
+    session_id: usize,
+    offset: usize,
+    is_incomplete: bool,
 }
 
+/// result of handling new input
 pub struct InputResult {
-    /// session id after handle new input
+    /// session id after handling new input
     pub session_id: usize,
-    /// raw input from rime after handle new input
+    /// raw input from rime after handling new input
     pub raw_input: Option<String>,
 }
 
 impl InputState {
-    /// check if cached input is prefix or suffix of current input
-    /// return diff result: Add / Delete / New
     pub fn new(input: Input, session_id: usize, offset: usize, is_incomplete: bool) -> InputState {
         InputState {
             input,
@@ -61,12 +60,6 @@ impl InputState {
             offset,
             is_incomplete,
         }
-    }
-
-    pub fn handle_first_state(new_input: &Input) -> InputResult {
-        let rime = Rime::global();
-        let session_id = rime.create_session();
-        Self::handle_new_typing(session_id, new_input)
     }
 
     fn handle_new_typing(session_id: usize, new_input: &Input) -> InputResult {
@@ -83,12 +76,19 @@ impl InputState {
 
     fn handle_schema(session_id: usize) -> InputResult {
         let rime = Rime::global();
+        // TODO: support other shortcuts?
         rime.process_key(session_id, KEY_F4);
         let raw_input = rime.get_raw_input(session_id);
         InputResult {
             session_id,
             raw_input,
         }
+    }
+
+    pub fn handle_first_state(new_input: &Input) -> InputResult {
+        let rime = Rime::global();
+        let session_id = rime.create_session();
+        Self::handle_new_typing(session_id, new_input)
     }
 
     pub fn handle_new_input(

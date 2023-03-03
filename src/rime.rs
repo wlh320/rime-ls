@@ -55,7 +55,6 @@ pub enum RimeError {
     SessionNotFound(usize),
 }
 
-#[derive(Debug)]
 pub struct RimeResponse {
     /// if this input is incomplete
     pub is_incomplete: bool,
@@ -63,13 +62,6 @@ pub struct RimeResponse {
     pub submitted: String,
     /// list of candidate provided by rime
     pub candidates: Vec<Candidate>,
-}
-
-impl Drop for Rime {
-    fn drop(&mut self) {
-        // FIXME: it seems that static once_cell variables will not be dropped?
-        // self.destroy();
-    }
 }
 
 impl Rime {
@@ -95,7 +87,6 @@ impl Rime {
         // set dirs
         traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
         traits.user_data_dir = CString::new(user_data_dir)?.into_raw();
-
         #[cfg(not(feature = "no_log_dir"))]
         {
             traits.log_dir = CString::new(log_dir)?.into_raw();
@@ -113,8 +104,6 @@ impl Rime {
             librime::RimeInitialize(&mut traits);
             if librime::RimeStartMaintenanceOnWorkspaceChange() != 0 {
                 librime::RimeJoinMaintenanceThread();
-                librime::RimeSyncUserData();
-                librime::RimeJoinMaintenanceThread();
             }
             // retake pointer
             let _ = CString::from_raw(traits.shared_data_dir as *mut i8);
@@ -126,6 +115,7 @@ impl Rime {
             let _ = CString::from_raw(traits.distribution_version as *mut i8);
             let _ = CString::from_raw(traits.app_name as *mut i8);
         }
+
         RIME.set(Rime).unwrap();
         Ok(())
     }
@@ -153,19 +143,17 @@ impl Rime {
                     .to_owned()
             };
             let comment = unsafe {
-                (!candidate.comment.is_null())
-                    .then(|| match CStr::from_ptr(candidate.comment).to_str() {
+                (!candidate.comment.is_null()).then(|| {
+                    match CStr::from_ptr(candidate.comment).to_str() {
                         Ok(s) => s.to_string(),
-                        Err(_) => "".to_string(),
-                    })
-                    .unwrap_or_default()
+                        Err(e) => e.to_string(),
+                    }
+                })
             };
             let order = (i + 1) as usize;
-            res.lock().unwrap().push(Candidate {
-                text,
-                comment,
-                order,
-            });
+            res.lock()
+                .unwrap()
+                .push(Candidate::new(text, comment, Some(order)));
         }
         res.into_inner().map_err(|_| RimeError::GetCandidatesFailed)
     }
@@ -226,10 +214,10 @@ impl Rime {
             .unwrap_or_default();
         // note: must call it to consume commit text
         let commit_text = self.get_commit_text(session_id);
-        let mut is_incomplete = true;
         // get candidates vec
         // if vec is empty but we have commit text, return it as the only candidate
         // else return an empty vec
+        let mut is_incomplete = true;
         let candidates = self.get_candidates_from_context(&context).map(|v| {
             (!v.is_empty())
                 .then_some(v)
