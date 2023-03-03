@@ -78,13 +78,12 @@ index a53dd2c..e51a63e 100644
 >
 > 使用前备份自己的数据, 避免因作者对 rime API 理解不到位可能造成的数据损失
 
-可以通过 rime 的 sync 功能将系统中已安装的 rime 输入法的词库同步过来.
+可以通过 rime 的 sync 功能将系统中已安装的 rime 输入法的词库同步过来。
 
 如需同步词库, 可以在 rime-ls 自己的用户目录下的 `installation.yaml`
-添加`sync_dir: "/<existing user data dir>/sync"` 配置项,
-每次 rime-ls 启动时会触发 rime 的同步.
+添加`sync_dir: "/<existing user data dir>/sync"` 配置项。
 
-也可以通過 LSP 的 `workspace/executeCommand` 手動調用 `rime-ls.sync_user_data` 的命令同步 (since v0.1.2)
+通过 LSP 的 `workspace/executeCommand` 手動調用 `rime-ls.sync_user_data` 的命令进行同步 (since v0.1.2)
 
 ## TODO
 
