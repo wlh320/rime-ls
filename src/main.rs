@@ -1,7 +1,6 @@
-use std::{net::SocketAddr, str::FromStr};
-
 use rime_ls::lsp::Backend;
 use rime_ls::rime::Rime;
+use std::{net::SocketAddr, str::FromStr};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::{self, Receiver};
 use tower_lsp::{LspService, Server};

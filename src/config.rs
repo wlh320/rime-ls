@@ -41,6 +41,21 @@ pub struct Settings {
     pub schema_trigger_character: Option<String>,
 }
 
+macro_rules! apply_setting {
+    ($to:ident <- $from:ident.$field:ident) => {
+        if let Some(v) = $from.$field {
+            $to.$field = v;
+        }
+    };
+    ($to:ident <- $from:ident.$field:ident, |$v:ident| $b:block) => {
+        if let Some($v) = $from.$field {
+            $b
+            $to.$field = $v;
+        }
+    };
+}
+pub(crate) use apply_setting;
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -98,4 +113,29 @@ fn test_default_config() {
         config.schema_trigger_character,
         default_schema_trigger_character()
     );
+}
+
+#[test]
+fn test_apply_settings() {
+    let mut config: Config = Default::default();
+    let settings: Settings = Settings {
+        enabled: Some(false),
+        max_candidates: Some(100),
+        trigger_characters: Some(vec!["foo".to_string()]),
+        schema_trigger_character: Some(String::from("bar")),
+    };
+    // apply settings with macro
+    let mut test_val = vec!["baz".to_string()];
+    apply_setting!(config <- settings.enabled);
+    apply_setting!(config <- settings.max_candidates);
+    apply_setting!(config <- settings.trigger_characters, |v| {
+        test_val = v.clone();
+    });
+    apply_setting!(config <- settings.schema_trigger_character);
+    // verify
+    assert_eq!(config.enabled, false);
+    assert_eq!(config.max_candidates, 100);
+    assert_eq!(config.trigger_characters, vec!["foo".to_string()]);
+    assert_eq!(config.schema_trigger_character, String::from("bar"));
+    assert_eq!(test_val, vec!["foo".to_string()]);
 }

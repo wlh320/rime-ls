@@ -1,8 +1,9 @@
+use ouroboros::self_referencing;
+use regex::Regex;
+
 use crate::consts::KEY_F4;
 use crate::rime::Rime;
 use crate::utils::{diff, DiffResult};
-use ouroboros::self_referencing;
-use regex::Regex;
 
 /// struct that stores matched raw text and its matches
 #[self_referencing]

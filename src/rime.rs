@@ -1,4 +1,4 @@
-use crate::consts::{KEY_BACKSPACE, KEY_ESCAPE, RAW_RE};
+use crate::consts::{APP_NAME, KEY_BACKSPACE, KEY_ESCAPE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{CStr, CString, NulError};
@@ -97,7 +97,8 @@ impl Rime {
         traits.distribution_name = CString::new("Rime")?.into_raw();
         traits.distribution_code_name = CString::new("rime-ls")?.into_raw();
         traits.distribution_version = CString::new(env!("CARGO_PKG_VERSION"))?.into_raw();
-        traits.app_name = CString::new("rime.rime-ls")?.into_raw();
+        // note: app_name is passed to glog as `const char*` without being copied to a std::string
+        traits.app_name = APP_NAME.as_ptr() as *mut i8;
 
         unsafe {
             librime::RimeSetup(&mut traits);
@@ -113,7 +114,6 @@ impl Rime {
             let _ = CString::from_raw(traits.distribution_name as *mut i8);
             let _ = CString::from_raw(traits.distribution_code_name as *mut i8);
             let _ = CString::from_raw(traits.distribution_version as *mut i8);
-            let _ = CString::from_raw(traits.app_name as *mut i8);
         }
 
         RIME.set(Rime).unwrap();

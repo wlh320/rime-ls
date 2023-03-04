@@ -1,8 +1,3 @@
-use crate::config::{Config, Settings};
-use crate::consts::{trigger_ptn, NT_RE};
-use crate::input::{Input, InputResult, InputState};
-use crate::rime::{Candidate, Rime, RimeError, RimeResponse};
-use crate::utils;
 use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
@@ -11,6 +6,12 @@ use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
+
+use crate::config::{apply_setting, Config, Settings};
+use crate::consts::{trigger_ptn, NT_RE};
+use crate::input::{Input, InputResult, InputState};
+use crate::rime::{Candidate, Rime, RimeError, RimeResponse};
+use crate::utils;
 
 pub struct Backend {
     client: Client,
@@ -82,21 +83,14 @@ impl Backend {
                 return;
             }
         };
-        // TODO: any better ideas?
+
         let mut config = self.config.write().await;
-        if let Some(v) = settings.enabled {
-            config.enabled = v;
-        }
-        if let Some(v) = settings.max_candidates {
-            config.max_candidates = v;
-        }
-        if let Some(v) = settings.trigger_characters {
+        apply_setting!(config <- settings.enabled);
+        apply_setting!(config <- settings.max_candidates);
+        apply_setting!(config <- settings.trigger_characters, |v| {
             self.compile_regex(&v).await;
-            config.trigger_characters = v;
-        }
-        if let Some(v) = settings.schema_trigger_character {
-            config.schema_trigger_character = v;
-        }
+        });
+        apply_setting!(config <- settings.schema_trigger_character);
     }
 
     async fn create_work_done_progress(&self, token: NumberOrString) -> Result<NumberOrString> {

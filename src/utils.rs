@@ -1,8 +1,8 @@
+use ropey::Rope;
 use std::path::{Path, PathBuf};
+use tower_lsp::lsp_types::Position;
 
 use crate::consts::AUTO_TRIGGER_RE;
-use ropey::Rope;
-use tower_lsp::lsp_types::Position;
 
 /// UTF-16 Position -> UTF-8 offset
 pub fn position_to_offset(rope: &Rope, position: Position) -> Option<usize> {
