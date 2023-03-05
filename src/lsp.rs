@@ -201,8 +201,13 @@ impl Backend {
                 0 => text.to_string(),
                 _ => format!("{}. {}", c.order, &text),
             };
+            let label_details = (!c.comment.is_empty()).then_some(CompletionItemLabelDetails {
+                detail: Some(c.comment.clone()),
+                description: None,
+            });
             CompletionItem {
                 label,
+                label_details,
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
                 filter_text: Some(filter_text.clone()),
@@ -275,8 +280,7 @@ impl LanguageServer for Backend {
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
                     trigger_characters: Some(triggers),
-                    work_done_progress_options: Default::default(),
-                    all_commit_characters: None,
+                    ..CompletionOptions::default()
                 }),
                 execute_command_provider: Some(ExecuteCommandOptions {
                     commands: vec![
