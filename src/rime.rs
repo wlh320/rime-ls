@@ -55,6 +55,7 @@ pub enum RimeError {
     SessionNotFound(usize),
 }
 
+#[derive(Debug)]
 pub struct RimeResponse {
     /// if this input is incomplete
     pub is_incomplete: bool,

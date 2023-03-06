@@ -195,8 +195,12 @@ impl Backend {
             let max_candidates = self.config.read().await.max_candidates;
             utils::build_order_to_sort_text(max_candidates)
         };
-        let candidate_to_completion_item = move |c: Candidate| -> CompletionItem {
-            let text = submitted.clone() + &c.text;
+        let is_selecting = new_input.is_selecting();
+        let candidate_to_completion_item = |i: usize, c: Candidate| -> CompletionItem {
+            let text = match is_selecting {
+                true => submitted.clone() + &c.text,
+                false => c.text,
+            };
             let label = match c.order {
                 0 => text.to_string(),
                 _ => format!("{}. {}", c.order, &text),
@@ -208,6 +212,7 @@ impl Backend {
             CompletionItem {
                 label,
                 label_details,
+                preselect: Some(i == 0),
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
                 filter_text: Some(filter_text.clone()),
@@ -225,7 +230,10 @@ impl Backend {
             is_incomplete,
         ));
         // return completions
-        let item_iter = candidates.into_iter().map(candidate_to_completion_item);
+        let item_iter = candidates
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| candidate_to_completion_item(i, c));
         Some(CompletionList {
             is_incomplete,
             items: item_iter.collect(),

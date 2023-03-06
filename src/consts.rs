@@ -6,7 +6,7 @@ use regex::Regex;
 pub const APP_NAME: &str = "rime.rime-ls\0";
 
 pub const NT_PTN: &str = r"((?P<py>[a-zA-Z[:punct:]]+)(?P<se>[0-9,\.\-=]*))$";
-pub const RAW_PTN: &str = r"[a-zA-Zü[:punct:]]+";
+pub const RAW_PTN: &str = r"[a-zA-Z0-9ü[:punct:]]+";
 pub const AUTO_TRIGGER_PTN: &str = r"[^a-zA-Z[:punct:]\s][a-zA-Z[:punct:]]+[0-9,\.\-=]*$";
 
 // hack "format argument must be a string literal"

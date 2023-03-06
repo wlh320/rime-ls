@@ -35,6 +35,10 @@ impl Input {
             .build()
         })
     }
+
+    pub fn is_selecting(&self) -> bool {
+        !self.borrow_select().is_empty()
+    }
 }
 
 /// save input state
