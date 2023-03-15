@@ -2,7 +2,7 @@
 
 为 rime 输入法核心库 librime (的部分功能) 实现 LSP 协议, 从而通过编辑器的代码补全功能输入汉字.
 
-项目还处在**早期阶段**, 各方面相对不成熟.
+项目还处在**早期阶段**
 
 目标是提供 rime + LSP 的通用解决方案, 在不同编辑器内实现与其他 rime 前端类似的输入体验.
 
@@ -84,6 +84,12 @@ index a53dd2c..e51a63e 100644
 添加`sync_dir: "/<existing user data dir>/sync"` 配置项。
 
 通过 LSP 的 `workspace/executeCommand` 手動調用 `rime-ls.sync_user_data` 的命令进行同步 (since v0.1.2)
+
+## FAQ
+
+1. 为什么默认补全繁体中文？怎么修改候选个数？
+
+答：这部分由 Rime 负责，参考 [Rime 的配置手册](https://rime.im/docs/)。
 
 ## TODO
 
