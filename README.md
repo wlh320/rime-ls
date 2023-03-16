@@ -70,6 +70,15 @@ index a53dd2c..e51a63e 100644
 ```
 3. 修改本项目的 `Cargo.toml` 指向本地的依赖
 4. 用 `i686` 的 target 编译 (因为 librime 只给了 32 位的 dll)
+ 
+### MacOS
+
+1. 安装 [鼠须管输入法](https://github.com/rime/squirrel)
+2. 安装 [librime](https://github.com/rime/librime); 从此项目中的 [Release](https://github.com/rime/librime/releases/)
+下载最新的 MacOS 相关的压缩包，解压缩后将 include 文件夹以及 lib 文件夹下的内容分别复制到 `/usr/local/include` 和 `/usr/local/lib`;
+lib 库文件后面调用的时候应该还需要到 MacOS 的“安全性与隐私”中进行授权，所以建议调用解压后 bin 文件下的可执行文件来提前触发授权。
+3. 编译，参考 [Ubuntu](#Ubuntu)
+4. 配置，`shared_data_dir` 应该设置为 `/Library/Input Methods/Squirrel.app/Contents/SharedSupport`
 
 ### 个人词库同步
 
