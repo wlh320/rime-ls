@@ -2,6 +2,12 @@ use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OverrideCompletionProvider {
+    #[serde(default = "default_trigger_characters")]
+    pub trigger_characters: Vec<String>,
+}
+
 /// all configs of rime-ls
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -26,6 +32,8 @@ pub struct Config {
     /// if set, completion request with this string will trigger「方案選單」
     #[serde(default = "default_schema_trigger_character")]
     pub schema_trigger_character: String,
+    #[serde(default = "default_override_server_capabilities")]
+    pub override_server_capabilities: OverrideCompletionProvider,
 }
 
 /// settings that can be tweaked during running
@@ -66,6 +74,7 @@ impl Default for Config {
             max_candidates: default_max_candidates(),
             trigger_characters: default_trigger_characters(),
             schema_trigger_character: default_schema_trigger_character(),
+            override_server_capabilities: default_override_server_capabilities(),
         }
     }
 }
@@ -100,6 +109,12 @@ fn default_schema_trigger_character() -> String {
     String::default()
 }
 
+fn default_override_server_capabilities() -> OverrideCompletionProvider {
+    OverrideCompletionProvider {
+        trigger_characters: default_trigger_characters(),
+    }
+}
+
 #[test]
 fn test_default_config() {
     let config: Config = Default::default();
@@ -112,6 +127,10 @@ fn test_default_config() {
     assert_eq!(
         config.schema_trigger_character,
         default_schema_trigger_character()
+    );
+    assert_eq!(
+        config.override_server_capabilities,
+        default_override_server_capabilities()
     );
 }
 

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use ouroboros::self_referencing;
 use regex::Regex;
 
@@ -13,6 +15,16 @@ pub struct Input {
     pub pinyin: &'this str,
     #[borrows(raw_text)]
     pub select: &'this str,
+}
+
+impl Display for Input {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "pinyin: {}, select: {}",
+            self.borrow_pinyin(),
+            self.borrow_select()
+        ))
+    }
 }
 
 impl Input {

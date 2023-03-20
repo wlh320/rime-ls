@@ -262,12 +262,18 @@ impl LanguageServer for Backend {
             .log_message(MessageType::INFO, "Rime-ls Language Server initialized")
             .await;
         // set LSP triggers
-        let triggers = {
-            let mut triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec(); // pages
-            let user_triggers = &self.config.read().await.trigger_characters;
-            triggers.extend_from_slice(user_triggers);
-            triggers
-        };
+        let triggers;
+        {
+            let config = self.config.read().await;
+            triggers = if config.override_server_capabilities.trigger_characters.is_empty() {
+                let mut triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec(); // pages
+                let user_triggers = &self.config.read().await.trigger_characters;
+                triggers.extend_from_slice(user_triggers);
+                triggers
+            } else {
+                config.override_server_capabilities.trigger_characters.clone()
+            };
+        }
         // return
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
