@@ -17,6 +17,8 @@ local start_rime = function()
       max_candidates = 10, -- [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
       trigger_characters = {}, -- 为空表示全局开启
       schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
+      always_incomplete = false -- [since v0.2.0] true 强制补全永远刷新整个列表，而不是使用过滤
+      max_tokens = 0 -- [since v0.2.0] 大于 0 表示会在删除到这个字符个数的时候，重建所有候选词，而不使用删除字符操作
     },
   });
   vim.lsp.buf_attach_client(0, client_id)
@@ -237,7 +239,7 @@ return M
 
 ## 空格键补全
 
-为了取得与外部输入法更加相似的体验，可以通过配置 cmp 实现用空格键补全，参考配置如下：
+为了取得与外部输入法更加相似的体验，可以通过配置 cmp 实现用空格键补全并用回车键直接输入，参考配置如下：
 
 ```lua
 cmp.setup {
@@ -248,6 +250,9 @@ cmp.setup {
     -- ...
     ['<Space>'] = cmp.mapping(function(fallback)
       local entry = cmp.get_selected_entry()
+      if entry == nil then
+        entry = cmp.core.view:get_first_entry()
+      end
       if entry and entry.source.name == "nvim_lsp"
         and entry.source.source.client.name == "rime_ls" then
         cmp.confirm({
@@ -256,6 +261,25 @@ cmp.setup {
         })
       else
         fallback()
+      end
+    end, {'i', 's'}),
+    ['<CR>'] = cmp.mapping(function(fallback)
+      local entry = cmp.get_selected_entry()
+      if entry == nil then
+        entry = cmp.core.view:get_first_entry()
+      end
+      if entry and entry.source.name == 'nvim_lsp'
+        and entry.source.source.client.name == 'rime_ls' then
+        cmp.abort()
+      else
+        if entry ~= nil then
+          cmp.confirm({
+            behavior = cmp.ConfirmBehavior.Replace,
+            select = true
+          })
+        else
+          fallback()
+        end
       end
     end, {'i', 's'}),
     -- 其他内容
@@ -271,4 +295,24 @@ cmp.setup {
 ## 通过 TCP 远程使用
 
 将运行命令修改为 `cmd = vim.lsp.rpc.connect('<ip>', <port>)`
+
+## 五笔或者双形用户
+
+```lua
+require('lspconfig').rime_ls.setup {
+  init_options = {
+    enabled = vim.g.rime_enabled,
+    shared_data_dir = "/usr/share/rime-data",
+    user_data_dir = "~/.local/share/rime-ls",
+    log_dir = "~/.local/share/rime-ls",
+    max_candidates = 9,
+    trigger_characters = {},
+    schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
+    max_tokens = 4, -- 强制在删除到4字的时候重建一次候选词，避免用退格造成的空列表的问题
+    always_incomplete = true, -- 将 incomplete 永远设为 true，防止任何时候的过滤代替候选词重建
+  },
+  on_attach = rime_on_attach,
+  capabilities = capabilities,
+}
+```
 
