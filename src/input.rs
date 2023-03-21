@@ -113,6 +113,7 @@ impl InputState {
         new_offset: usize,
         new_input: &Input,
         schema_trigger: &str,
+        max_tokens: usize,
     ) -> InputResult {
         let rime = Rime::global();
         let session_id = rime.find_session(self.session_id);
@@ -130,7 +131,13 @@ impl InputState {
         let diff_pinyin = diff(self.input.borrow_pinyin(), new_input.borrow_pinyin());
         match diff_pinyin {
             DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
-            DiffResult::Delete(suffix) => rime.delete_keys(session_id, suffix.len()),
+            DiffResult::Delete(suffix) => {
+                if max_tokens > 0 && max_tokens == new_input.borrow_pinyin().len() {
+                    rime.clear_composition(session_id);
+                    return Self::handle_new_typing(session_id, new_input);
+                }
+                rime.delete_keys(session_id, suffix.len())
+            }
             DiffResult::New => {
                 rime.clear_composition(session_id);
                 if !schema_trigger.is_empty() && new_input.borrow_pinyin() == &schema_trigger {

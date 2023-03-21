@@ -163,7 +163,7 @@ impl Backend {
         } = match (*last_state).as_ref() {
             Some(state) => {
                 let schema_trigger = &self.config.read().await.schema_trigger_character;
-                state.handle_new_input(new_offset, &new_input, schema_trigger)
+                state.handle_new_input(new_offset, &new_input, schema_trigger, self.config.read().await.max_tokens)
             }
             None => InputState::handle_first_state(&new_input),
         };

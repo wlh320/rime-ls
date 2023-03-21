@@ -34,6 +34,9 @@ pub struct Config {
     pub schema_trigger_character: String,
     #[serde(default = "default_override_server_capabilities")]
     pub override_server_capabilities: OverrideCompletionProvider,
+    /// if set, when a delete action arrive the number of max tokens, emit a force new_typing
+    #[serde(default = "default_max_tokens")]
+    pub max_tokens: usize,
 }
 
 /// settings that can be tweaked during running
@@ -75,6 +78,7 @@ impl Default for Config {
             trigger_characters: default_trigger_characters(),
             schema_trigger_character: default_schema_trigger_character(),
             override_server_capabilities: default_override_server_capabilities(),
+            max_tokens: default_max_tokens(),
         }
     }
 }
@@ -85,6 +89,10 @@ fn default_enabled() -> bool {
 
 fn default_max_candidates() -> usize {
     10
+}
+
+fn default_max_tokens() -> usize {
+    0
 }
 
 fn default_trigger_characters() -> Vec<String> {
