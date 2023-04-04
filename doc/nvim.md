@@ -19,6 +19,7 @@ local start_rime = function()
       schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
       always_incomplete = false -- [since v0.2.3] true 强制补全永远刷新整个列表，而不是使用过滤
       max_tokens = 0 -- [since v0.2.3] 大于 0 表示会在删除到这个字符个数的时候，重建所有候选词，而不使用删除字符操作
+      preselect_first = false -- [since v0.2.3] 是否默认第一个候选项是选中状态，default false
     },
   });
   vim.lsp.buf_attach_client(0, client_id)

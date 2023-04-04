@@ -32,6 +32,9 @@ pub struct Config {
     /// if CompletionItem is always incomplete
     #[serde(default = "default_always_incomplete")]
     pub always_incomplete: bool,
+    /// if preselect first CompletionItem
+    #[serde(default = "default_preselect_first")]
+    pub preselect_first: bool,
 }
 
 /// settings that can be tweaked during running
@@ -45,6 +48,12 @@ pub struct Settings {
     pub trigger_characters: Option<Vec<String>>,
     /// if set, completion request with this string will trigger「方案選單」
     pub schema_trigger_character: Option<String>,
+    /// if set, when a delete action arrives the number of max tokens, emit a force new_typing
+    pub max_tokens: Option<usize>,
+    /// if CompletionItem is always incomplete
+    pub always_incomplete: Option<bool>,
+    /// if preselect first CompletionItem
+    pub preselect_first: Option<bool>,
 }
 
 macro_rules! apply_setting {
@@ -74,6 +83,7 @@ impl Default for Config {
             schema_trigger_character: default_schema_trigger_character(),
             max_tokens: default_max_tokens(),
             always_incomplete: default_always_incomplete(),
+            preselect_first: default_preselect_first(),
         }
     }
 }
@@ -116,6 +126,10 @@ fn default_schema_trigger_character() -> String {
     String::default()
 }
 
+fn default_preselect_first() -> bool {
+    false
+}
+
 #[test]
 fn test_default_config() {
     let config: Config = Default::default();
@@ -141,6 +155,9 @@ fn test_apply_settings() {
         max_candidates: Some(100),
         trigger_characters: Some(vec!["foo".to_string()]),
         schema_trigger_character: Some(String::from("bar")),
+        max_tokens: None,
+        always_incomplete: None,
+        preselect_first: None,
     };
     // apply settings with macro
     let mut test_val = vec!["baz".to_string()];

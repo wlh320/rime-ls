@@ -91,6 +91,9 @@ impl Backend {
             self.compile_regex(&v).await;
         });
         apply_setting!(config <- settings.schema_trigger_character);
+        apply_setting!(config <- settings.max_tokens);
+        apply_setting!(config <- settings.always_incomplete);
+        apply_setting!(config <- settings.preselect_first);
     }
 
     async fn create_work_done_progress(&self, token: NumberOrString) -> Result<NumberOrString> {
@@ -201,7 +204,8 @@ impl Backend {
             utils::build_order_to_sort_text(max_candidates)
         };
         let is_selecting = new_input.is_selecting();
-        let candidate_to_completion_item = |i: usize, c: Candidate| -> CompletionItem {
+        let preselect_enabled = self.config.read().await.preselect_first;
+        let candidate_to_completion_item = |(i, c): (usize, Candidate)| -> CompletionItem {
             let text = match is_selecting {
                 true => submitted.clone() + &c.text,
                 false => c.text,
@@ -217,7 +221,7 @@ impl Backend {
             CompletionItem {
                 label,
                 label_details,
-                preselect: Some(i == 0),
+                preselect: (preselect_enabled && i == 0).then_some(true),
                 kind: Some(CompletionItemKind::TEXT),
                 detail: utils::option_string(c.comment),
                 filter_text: Some(filter_text.clone()),
@@ -238,7 +242,7 @@ impl Backend {
         let item_iter = candidates
             .into_iter()
             .enumerate()
-            .map(|(i, c)| candidate_to_completion_item(i, c));
+            .map(candidate_to_completion_item);
         Some(CompletionList {
             is_incomplete: (self.config.read().await.always_incomplete || is_incomplete),
             items: item_iter.collect(),
