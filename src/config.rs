@@ -26,9 +26,10 @@ pub struct Config {
     /// if set, completion request with this string will trigger「方案選單」
     #[serde(default = "default_schema_trigger_character")]
     pub schema_trigger_character: String,
-    /// if set, when a delete action arrive the number of max tokens, emit a force new_typing
+    /// if set, when a delete action arrives the number of max tokens, emit a force new_typing
     #[serde(default = "default_max_tokens")]
     pub max_tokens: usize,
+    /// if CompletionItem is always incomplete
     #[serde(default = "default_always_incomplete")]
     pub always_incomplete: bool,
 }
@@ -128,6 +129,8 @@ fn test_default_config() {
         config.schema_trigger_character,
         default_schema_trigger_character()
     );
+    assert_eq!(config.always_incomplete, default_always_incomplete());
+    assert_eq!(config.max_tokens, default_max_tokens());
 }
 
 #[test]

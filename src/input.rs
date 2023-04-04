@@ -132,6 +132,7 @@ impl InputState {
         match diff_pinyin {
             DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
             DiffResult::Delete(suffix) => {
+                // if current pinyin len == max_tokens, force new typing
                 if max_tokens > 0 && max_tokens == new_input.borrow_pinyin().len() {
                     rime.clear_composition(session_id);
                     return Self::handle_new_typing(session_id, new_input);
