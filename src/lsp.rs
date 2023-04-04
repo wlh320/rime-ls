@@ -163,7 +163,12 @@ impl Backend {
         } = match (*last_state).as_ref() {
             Some(state) => {
                 let schema_trigger = &self.config.read().await.schema_trigger_character;
-                state.handle_new_input(new_offset, &new_input, schema_trigger)
+                state.handle_new_input(
+                    new_offset,
+                    &new_input,
+                    schema_trigger,
+                    self.config.read().await.max_tokens,
+                )
             }
             None => InputState::handle_first_state(&new_input),
         };
@@ -235,7 +240,7 @@ impl Backend {
             .enumerate()
             .map(|(i, c)| candidate_to_completion_item(i, c));
         Some(CompletionList {
-            is_incomplete,
+            is_incomplete: (self.config.read().await.always_incomplete || is_incomplete),
             items: item_iter.collect(),
         })
     }
