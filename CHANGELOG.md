@@ -1,3 +1,19 @@
+# v0.2.3
+
+## Breaking Changes
+- 不再默认选中第一个候选项，若要选中，通过新配置项 `preselect_first` 进行配置
+
+## Feat
+- 提升了在五笔和音形输入方案下的体验 #7 (Thanks to TwIStOy)
+    - 增加了新配置项 `max_tokens`，强制在删除到一定长度时重建一次候选词
+    - 增加了新配置项 `always_incomplete`，每次输入重建候选词，防止过滤代替候选词重建
+
+## Doc
+- 增加了 macOS 系统下的编译步骤 #6 (Thanks to rainzm)
+- 更新了 neovim 配置样例，在 nvim-cmp 下的体验更接近系统输入法
+    - 空格汉字上屏之外，新增回车原始串上屏 #7 (Thanks to TwIStOy)
+    - 使上述行为只对 rime-ls 提供的补全项生效，不影响其他补全
+
 # v0.2.2
 
 ## Fix
