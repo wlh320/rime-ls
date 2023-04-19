@@ -1,7 +1,7 @@
 use crate::consts::{APP_NAME, KEY_BACKSPACE, KEY_ESCAPE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
-use std::ffi::{CStr, CString, NulError};
+use std::ffi::{CStr, CString, NulError, c_char};
 use std::sync::Mutex;
 use thiserror::Error;
 
@@ -99,7 +99,7 @@ impl Rime {
         traits.distribution_code_name = CString::new("rime-ls")?.into_raw();
         traits.distribution_version = CString::new(env!("CARGO_PKG_VERSION"))?.into_raw();
         // note: app_name is passed to glog as `const char*` without being copied to a std::string
-        traits.app_name = APP_NAME.as_ptr() as *mut i8;
+        traits.app_name = APP_NAME.as_ptr() as *mut c_char;
 
         unsafe {
             librime::RimeSetup(&mut traits);
@@ -108,13 +108,13 @@ impl Rime {
                 librime::RimeJoinMaintenanceThread();
             }
             // retake pointer
-            let _ = CString::from_raw(traits.shared_data_dir as *mut i8);
-            let _ = CString::from_raw(traits.user_data_dir as *mut i8);
+            let _ = CString::from_raw(traits.shared_data_dir as *mut c_char);
+            let _ = CString::from_raw(traits.user_data_dir as *mut c_char);
             #[cfg(not(feature = "no_log_dir"))]
-            let _ = CString::from_raw(traits.log_dir as *mut i8);
-            let _ = CString::from_raw(traits.distribution_name as *mut i8);
-            let _ = CString::from_raw(traits.distribution_code_name as *mut i8);
-            let _ = CString::from_raw(traits.distribution_version as *mut i8);
+            let _ = CString::from_raw(traits.log_dir as *mut c_char);
+            let _ = CString::from_raw(traits.distribution_name as *mut c_char);
+            let _ = CString::from_raw(traits.distribution_code_name as *mut c_char);
+            let _ = CString::from_raw(traits.distribution_version as *mut c_char);
         }
 
         RIME.set(Rime).unwrap();
