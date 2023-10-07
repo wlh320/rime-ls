@@ -87,6 +87,7 @@ impl Backend {
         let mut config = self.config.write().await;
         apply_setting!(config <- settings.enabled);
         apply_setting!(config <- settings.max_candidates);
+        apply_setting!(config <- settings.paging_characters);
         apply_setting!(config <- settings.trigger_characters, |v| {
             self.compile_regex(&v).await;
         });
@@ -272,7 +273,7 @@ impl LanguageServer for Backend {
             .await;
         // set LSP triggers
         let triggers = {
-            let mut triggers = [".", ",", "-", "="].map(|x| x.to_string()).to_vec(); // pages
+            let mut triggers = self.config.read().await.paging_characters.clone(); // for paging
             let user_triggers = &self.config.read().await.trigger_characters;
             triggers.extend_from_slice(user_triggers);
             triggers

@@ -20,6 +20,9 @@ pub struct Config {
     /// max number of candidates
     #[serde(default = "default_max_candidates")]
     pub max_candidates: usize,
+    /// if not empty, these characters will trigger completion for paging
+    #[serde(default = "default_paging_characters")]
+    pub paging_characters: Vec<String>,
     /// if not empty, only trigger completion with special keys
     #[serde(default = "default_trigger_characters")]
     pub trigger_characters: Vec<String>,
@@ -44,6 +47,8 @@ pub struct Settings {
     pub enabled: Option<bool>,
     /// max number of candidates
     pub max_candidates: Option<usize>,
+    /// if not empty, these characters will trigger completion for paging
+    pub paging_characters: Option<Vec<String>>,
     /// if not empty, only trigger completion with special keys
     pub trigger_characters: Option<Vec<String>>,
     /// if set, completion request with this string will trigger「方案選單」
@@ -79,6 +84,7 @@ impl Default for Config {
             user_data_dir: default_user_data_dir(),
             log_dir: default_log_dir(),
             max_candidates: default_max_candidates(),
+            paging_characters: default_paging_characters(),
             trigger_characters: default_trigger_characters(),
             schema_trigger_character: default_schema_trigger_character(),
             max_tokens: default_max_tokens(),
@@ -106,6 +112,10 @@ fn default_max_tokens() -> usize {
 
 fn default_trigger_characters() -> Vec<String> {
     Vec::default()
+}
+
+fn default_paging_characters() -> Vec<String> {
+    ["-", "=", ",", "."].map(|x| x.to_string()).to_vec()
 }
 
 fn default_shared_data_dir() -> PathBuf {
@@ -153,6 +163,7 @@ fn test_apply_settings() {
     let settings: Settings = Settings {
         enabled: Some(false),
         max_candidates: Some(100),
+        paging_characters: Some(vec![",".to_string(), ".".to_string()]),
         trigger_characters: Some(vec!["foo".to_string()]),
         schema_trigger_character: Some(String::from("bar")),
         max_tokens: None,
@@ -163,6 +174,7 @@ fn test_apply_settings() {
     let mut test_val = vec!["baz".to_string()];
     apply_setting!(config <- settings.enabled);
     apply_setting!(config <- settings.max_candidates);
+    apply_setting!(config <- settings.paging_characters);
     apply_setting!(config <- settings.trigger_characters, |v| {
         test_val = v.clone();
     });
@@ -170,6 +182,10 @@ fn test_apply_settings() {
     // verify
     assert_eq!(config.enabled, false);
     assert_eq!(config.max_candidates, 100);
+    assert_eq!(
+        config.paging_characters,
+        vec![",".to_string(), ".".to_string()]
+    );
     assert_eq!(config.trigger_characters, vec!["foo".to_string()]);
     assert_eq!(config.schema_trigger_character, String::from("bar"));
     assert_eq!(test_val, vec!["foo".to_string()]);
