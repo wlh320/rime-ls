@@ -31,6 +31,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
     - [neovim + nvim-cmp](doc/nvim.md)
     - [vim + coc.nvim](doc/vim.md)
     - [vscode](doc/vscode.md)
+    - [helix](doc/helix.md)
 4. 像配置其他 Rime 输入法一样在 rime-ls 的用户目录进行配置
 5. 輸入拼音, 就可以看到补全提示
 6. 可以通过修改 rime-ls 的配置项控制补全行为
@@ -70,7 +71,7 @@ index a53dd2c..e51a63e 100644
 ```
 3. 修改本项目的 `Cargo.toml` 指向本地的依赖
 4. 用 `i686` 的 target 编译 (因为 librime 只给了 32 位的 dll)
- 
+
 ### MacOS
 
 1. 安装 [鼠须管输入法](https://github.com/rime/squirrel)
@@ -97,8 +98,7 @@ lib 库文件后面调用的时候应该还需要到 MacOS 的“安全性与隐
 ## FAQ
 
 1. 为什么默认补全繁体中文？怎么修改候选个数？
-
-答：这部分由 Rime 负责，参考 [Rime 的配置手册](https://rime.im/docs/)。
+    答：这部分由 Rime 负责，参考 [Rime 的帮助文档](https://rime.im/docs/)。
 
 ## TODO
 
@@ -123,7 +123,7 @@ lib 库文件后面调用的时候应该还需要到 MacOS 的“安全性与隐
 - [x] ~~還沒完成開始這個項目的最初目的, 即直接復用 rime 配置~~ 维护一份独立的用户目录，与外部输入法互相同步词频
 - [x] ~~沒有完全實現 rime 功能, 只是读取了候选项, 沒有把选到的字真正提交~~ v0.2.0 基本解决
 - [ ] 第一次嘗試從 Rust 調用 C 接口，寫的非常不專業且 unsafe
-- [ ] 同时开启多个共用同一个用户目录的程序时，会因为用户数据库的锁导致不工作
+- [x] ~~同时开启多个共用同一个用户目录的程序时，会因为用户数据库的锁导致不工作~~ 是预期行为，避免这么干
 
 ## Credits
 
