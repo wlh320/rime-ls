@@ -15,6 +15,7 @@ local start_rime = function()
       user_data_dir = "~/.local/share/rime-ls", -- 指定用户目录, 最好新建一个
       log_dir = "~/.local/share/rime-ls", -- 日志目录
       max_candidates = 10, -- [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
+      paging_characters = {",", ".", "-", "="}, -- [since v0.2.4] 这些字符会强制触发一次补全，可用于翻页 见 issue #13
       trigger_characters = {}, -- 为空表示全局开启
       schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
       always_incomplete = false -- [since v0.2.3] true 强制补全永远刷新整个列表，而不是使用过滤
@@ -307,6 +308,7 @@ require('lspconfig').rime_ls.setup {
     user_data_dir = "~/.local/share/rime-ls",
     log_dir = "~/.local/share/rime-ls",
     max_candidates = 9,
+    paging_characters = {",", ".", "-", "="}, -- [since v0.2.4] 这些字符会强制触发一次补全，可用于翻页 见 issue #13
     trigger_characters = {},
     schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
     max_tokens = 4, -- 强制在删除到4字的时候重建一次候选词，避免用退格造成的空列表的问题

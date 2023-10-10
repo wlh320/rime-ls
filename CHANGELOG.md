@@ -1,3 +1,15 @@
+# v0.2.4
+
+## Fix
+- 修复了不定期发生的补全无法触发的问题 #14
+- 修复了 termux 环境下的构建失败 #8
+
+## Feat
+- 允许通过新配置项 `paging_characters` 自定义触发补全的字符，主要用途是翻页 #13
+
+## Chore
+- 有了基础的 GitHub CI #9 (Thanks to eagleoflqj)
+
 # v0.2.3
 
 ## Breaking Changes
