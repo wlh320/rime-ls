@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
+use std::borrow::Cow;
 
 use crate::config::{apply_setting, Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
@@ -149,11 +150,11 @@ impl Backend {
             let re = self.regex.read().await;
             let has_trigger = !self.config.read().await.trigger_characters.is_empty();
             (curr_char <= rope.len_chars()).then(|| {
-                let slice = rope.slice(line_begin..curr_char).as_str()?;
-                if utils::need_to_check_trigger(has_trigger, slice) {
-                    Input::from_str(&re, slice)
+                let slice = Cow::from(rope.slice(line_begin..curr_char));
+                if utils::need_to_check_trigger(has_trigger, &slice) {
+                    Input::from_str(&re, &slice)
                 } else {
-                    Input::from_str(&NT_RE, slice)
+                    Input::from_str(&NT_RE, &slice)
                 }
             })??
         };
