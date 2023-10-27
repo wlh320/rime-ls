@@ -7,6 +7,8 @@ helix 自带了对 LSP 的支持，但目前使用 rime-ls 还存在一些小问
 
 例如为 markdown 文件启用 rime-ls，在 `~/.config/helix/languages.toml` 中增加如下配置：
 
+### Before 23.10
+
 ```toml
 [[language]]
 name = "markdown"
@@ -21,6 +23,27 @@ config.trigger_characters = []
 config.schema_trigger_character = "&"
 config.max_tokens = 4
 config.always_incomplete = true
+```
+
+### Since 23.10
+
+```toml
+[language-server.rime-ls]
+command = "/path/to/rime-ls"
+config.shared_data_dir = "/usr/share/rime-data"
+config.user_data_dir = "~/.local/share/rime-ls"
+config.log_dir = "~/.local/share/rime-ls"
+config.max_candidates = 9
+config.trigger_characters = []
+config.schema_trigger_character = "&"
+config.max_tokens = 4
+config.always_incomplete = true
+
+[[language]]
+name = "markdown"
+scope = "source.markdown"
+file-types = ["md", "markdown"]
+language-servers = ["rime-ls"]
 ```
 
 rime-ls 的配置项参考其他编辑器，都是一样的，改成 toml 的格式即可。
