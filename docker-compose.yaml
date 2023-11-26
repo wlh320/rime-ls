@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  rime-ls:
+    restart: always
+    build: .
+    ports:
+      - 9257:9257
+    volumes:
+      # mount your rime user data
+      - /root/.config/my_rime:/root/.local/share/rime-ls
