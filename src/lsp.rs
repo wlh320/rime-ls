@@ -2,11 +2,11 @@ use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
 use serde_json::Value;
+use std::borrow::Cow;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer};
-use std::borrow::Cow;
 
 use crate::config::{apply_setting, Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
@@ -330,10 +330,6 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let mut rope = self
-            .documents
-            .get_mut(params.text_document.uri.as_str())
-            .unwrap();
         for change in params.content_changes {
             let TextDocumentContentChangeEvent {
                 range,
@@ -341,6 +337,10 @@ impl LanguageServer for Backend {
                 text,
             } = change;
             if let Some(Range { start, end }) = range {
+                let mut rope = self
+                    .documents
+                    .get_mut(params.text_document.uri.as_str())
+                    .unwrap();
                 let s = utils::position_to_offset(&rope, start);
                 let e = utils::position_to_offset(&rope, end);
                 if let (Some(s), Some(e)) = (s, e) {
