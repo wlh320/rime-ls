@@ -16,6 +16,6 @@ WORKDIR /app
 
 COPY --from=builder /app/target/release/rime_ls /app
 
-EXPOSE 9527
+EXPOSE 9257
 
 CMD ["/app/rime_ls","--listen","0.0.0.0:9257"]
