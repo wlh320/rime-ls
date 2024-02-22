@@ -195,7 +195,7 @@ impl Backend {
         // prevent deleting puncts before real pinyin input
         let real_offset = new_offset
             + raw_input
-                .and_then(|rime_raw_input| new_input.borrow_pinyin().find(&rime_raw_input))
+                .and_then(|rime_raw_input| new_input.borrow_pinyin().rfind(&rime_raw_input))
                 .unwrap_or(0);
 
         // candidates to completions
