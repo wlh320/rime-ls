@@ -79,3 +79,32 @@ pub fn expand_tilde(path: impl AsRef<Path>) -> PathBuf {
     let home_dir = base_dirs.home_dir();
     home_dir.join(path.as_ref().strip_prefix("~").unwrap())
 }
+
+#[inline]
+fn char_is_word(ch: char) -> bool {
+    ch.is_alphanumeric() || ch == '_'
+}
+
+pub fn surrounding_word(s: &str) -> String {
+    let end = s.len();
+    let mut start = end;
+    for ch in s.chars().rev() {
+        if char_is_word(ch) {
+            start -= ch.len_utf8();
+        } else {
+            break;
+        }
+    }
+    s[start..end].to_string()
+}
+
+#[test]
+fn test_surrounding_word() {
+    assert_eq!(surrounding_word(""), "".to_string());
+    assert_eq!(surrounding_word(" "), "".to_string());
+    assert_eq!(surrounding_word("hello_world"), "hello_world".to_string());
+    assert_eq!(surrounding_word("hello world"), "world".to_string());
+    assert_eq!(surrounding_word("汉字nihao"), "汉字nihao".to_string());
+    assert_eq!(surrounding_word("汉，字nihao"), "字nihao".to_string());
+    assert_eq!(surrounding_word("汉。字nihao"), "字nihao".to_string());
+}

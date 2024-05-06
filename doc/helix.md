@@ -23,6 +23,7 @@ config.trigger_characters = []
 config.schema_trigger_character = "&"
 config.max_tokens = 4
 config.always_incomplete = true
+config.long_filter_text = true
 ```
 
 ### Since 23.10
@@ -38,6 +39,7 @@ config.trigger_characters = []
 config.schema_trigger_character = "&"
 config.max_tokens = 4
 config.always_incomplete = true
+config.long_filter_text = true
 
 [[language]]
 name = "markdown"
@@ -52,7 +54,7 @@ rime-ls 的配置项参考其他编辑器，都是一样的，改成 toml 的格
 
 ## 存在问题
 
-- [ ] 补全触发条件有问题
-    - [ ] 在汉字后面输入不会自动触发补全，需通过配置的触发字符手动触发
-    - [ ] 最小补全长度为 2，手动设置最小补全长度为 1 会导致当前输入长度为 2 时补全消失
+- [x] 补全触发条件有问题(**已解决**)
+    - [x] 在汉字后面输入不会自动触发补全，需通过配置的触发字符手动触发(since v0.2.5 配置 `config.long_filter_text = true`)
+    - [x] 最小补全长度为 2，手动设置最小补全长度为 1 会导致当前输入长度为 2 时补全消失(helix 最新版已无问题)
 

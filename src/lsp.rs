@@ -96,6 +96,8 @@ impl Backend {
         apply_setting!(config <- settings.max_tokens);
         apply_setting!(config <- settings.always_incomplete);
         apply_setting!(config <- settings.preselect_first);
+        apply_setting!(config <- settings.long_filter_text);
+        apply_setting!(config <- settings.show_filter_text_in_label);
     }
 
     async fn create_work_done_progress(&self, token: NumberOrString) -> Result<NumberOrString> {
@@ -201,22 +203,31 @@ impl Backend {
 
         // candidates to completions
         let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
-        let filter_text = new_input.borrow_raw_text().to_string();
+        let filter_text = if self.config.read().await.long_filter_text {
+            let prefix = utils::surrounding_word(&Cow::from(rope.slice(line_begin..real_offset)));
+            prefix + new_input.borrow_raw_text()
+        } else {
+            new_input.borrow_raw_text().to_string()
+        };
         let order_to_sort_text = {
             let max_candidates = self.config.read().await.max_candidates;
             utils::build_order_to_sort_text(max_candidates)
         };
+        let show_filter_text_in_label = { self.config.read().await.show_filter_text_in_label };
         let is_selecting = new_input.is_selecting();
-        let preselect_enabled = self.config.read().await.preselect_first;
+        let preselect_enabled = { self.config.read().await.preselect_first };
         let candidate_to_completion_item = |(i, c): (usize, Candidate)| -> CompletionItem {
             let text = match is_selecting {
                 true => submitted.clone() + &c.text,
                 false => c.text,
             };
-            let label = match c.order {
+            let mut label = match c.order {
                 0 => text.to_string(),
                 _ => format!("{}. {}", c.order, &text),
             };
+            if show_filter_text_in_label {
+                label += &format!(" ({})", filter_text);
+            }
             let label_details = (!c.comment.is_empty()).then_some(CompletionItemLabelDetails {
                 detail: Some(c.comment.clone()),
                 description: None,
@@ -241,6 +252,7 @@ impl Backend {
             new_offset,
             is_incomplete,
         ));
+
         // return completions
         let item_iter = candidates
             .into_iter()

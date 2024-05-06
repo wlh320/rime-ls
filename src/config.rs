@@ -38,6 +38,12 @@ pub struct Config {
     /// if preselect first CompletionItem
     #[serde(default = "default_preselect_first")]
     pub preselect_first: bool,
+    /// if including word prefix in filter_text
+    #[serde(default = "default_long_filter_text")]
+    pub long_filter_text: bool,
+    /// if showing filter_text in label
+    #[serde(default = "default_show_filter_text_in_label")]
+    pub show_filter_text_in_label: bool,
 }
 
 /// settings that can be tweaked during running
@@ -59,6 +65,10 @@ pub struct Settings {
     pub always_incomplete: Option<bool>,
     /// if preselect first CompletionItem
     pub preselect_first: Option<bool>,
+    /// if including word prefix in filter_text
+    pub long_filter_text: Option<bool>,
+    /// if showing filter_text in label
+    pub show_filter_text_in_label: Option<bool>,
 }
 
 macro_rules! apply_setting {
@@ -90,6 +100,8 @@ impl Default for Config {
             max_tokens: default_max_tokens(),
             always_incomplete: default_always_incomplete(),
             preselect_first: default_preselect_first(),
+            long_filter_text: default_long_filter_text(),
+            show_filter_text_in_label: default_show_filter_text_in_label()
         }
     }
 }
@@ -140,6 +152,14 @@ fn default_preselect_first() -> bool {
     false
 }
 
+fn default_long_filter_text() -> bool {
+    false
+}
+
+fn default_show_filter_text_in_label() -> bool {
+    false
+}
+
 #[test]
 fn test_default_config() {
     let config: Config = Default::default();
@@ -169,6 +189,8 @@ fn test_apply_settings() {
         max_tokens: None,
         always_incomplete: None,
         preselect_first: None,
+        long_filter_text: None,
+        show_filter_text_in_label: Some(true),
     };
     // apply settings with macro
     let mut test_val = vec!["baz".to_string()];
@@ -179,6 +201,7 @@ fn test_apply_settings() {
         test_val = v.clone();
     });
     apply_setting!(config <- settings.schema_trigger_character);
+    apply_setting!(config <- settings.show_filter_text_in_label);
     // verify
     assert_eq!(config.enabled, false);
     assert_eq!(config.max_candidates, 100);
@@ -188,5 +211,6 @@ fn test_apply_settings() {
     );
     assert_eq!(config.trigger_characters, vec!["foo".to_string()]);
     assert_eq!(config.schema_trigger_character, String::from("bar"));
+    assert_eq!(config.show_filter_text_in_label, true);
     assert_eq!(test_val, vec!["foo".to_string()]);
 }
