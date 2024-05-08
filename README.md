@@ -34,6 +34,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
     - [vim + coc.nvim](doc/vim.md)
     - [vscode](doc/vscode.md)
     - [helix](doc/helix.md)
+    - [zed](doc/zed.md)
 4. 像配置其他 Rime 输入法一样在 rime-ls 的用户目录进行配置
 5. 輸入拼音, 就可以看到补全提示
 6. 可以通过修改 rime-ls 的配置项控制补全行为
