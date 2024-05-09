@@ -57,11 +57,6 @@ impl Backend {
         }
     }
 
-    async fn on_change(&self, params: TextDocumentItem) {
-        let rope = Rope::from_str(&params.text);
-        self.documents.insert(params.uri.to_string(), rope);
-    }
-
     async fn init_config(&self, params: Value) {
         let mut config = self.config.write().await;
         let new_cfg: Config = serde_json::from_value(params).unwrap_or_default();
@@ -142,7 +137,7 @@ impl Backend {
 
     async fn get_completions(&self, uri: Url, position: Position) -> Option<CompletionList> {
         // get new input
-        let rope = self.documents.get(&uri.to_string())?;
+        let rope = self.documents.get(uri.as_str())?;
         let line_begin = {
             let line_pos = Position::new(position.line, 0);
             utils::position_to_offset(&rope, line_pos)?
@@ -163,22 +158,33 @@ impl Backend {
         let new_offset = curr_char - new_input.borrow_raw_text().len();
 
         // handle new input
-        let mut last_state = self.state.entry(uri.to_string()).or_default();
+        let mut last_state = self.state.entry(uri.into()).or_default();
         let InputResult {
             session_id,
             raw_input,
         } = match (*last_state).as_ref() {
-            Some(state) => {
-                let schema_trigger = &self.config.read().await.schema_trigger_character;
-                state.handle_new_input(
-                    new_offset,
-                    &new_input,
-                    schema_trigger,
-                    self.config.read().await.max_tokens,
-                )
-            }
+            Some(state) => state.handle_new_input(
+                new_offset,
+                &new_input,
+                &self.config.read().await.schema_trigger_character,
+                self.config.read().await.max_tokens,
+            ),
             None => InputState::handle_first_state(&new_input),
         };
+
+        // prevent deleting puncts before real pinyin input
+        let real_offset = new_offset
+            + raw_input
+                .and_then(utils::option_string)
+                .and_then(|rime_raw_input| new_input.borrow_pinyin().rfind(&rime_raw_input))
+                .unwrap_or(0);
+        let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
+        let filter_prefix = (self.config.read().await.long_filter_text).then_some(
+            utils::surrounding_word(&Cow::from(rope.slice(line_begin..real_offset))),
+        );
+        // TODO: Does compiler know the right time to drop the lock,
+        // or it will wait until the end of this function?
+        drop(rope);
 
         // get candidates from current session
         let rime = Rime::global();
@@ -194,35 +200,36 @@ impl Backend {
             }
         };
 
-        // prevent deleting puncts before real pinyin input
-        let real_offset = new_offset
-            + raw_input
-                .and_then(utils::option_string)
-                .and_then(|rime_raw_input| new_input.borrow_pinyin().rfind(&rime_raw_input))
-                .unwrap_or(0);
-
-        // candidates to completions
-        let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
-        let filter_text = if self.config.read().await.long_filter_text {
-            let prefix = utils::surrounding_word(&Cow::from(rope.slice(line_begin..real_offset)));
-            prefix + new_input.borrow_raw_text()
-        } else {
-            new_input.borrow_raw_text().to_string()
-        };
-        let order_to_sort_text = {
-            let max_candidates = self.config.read().await.max_candidates;
-            utils::build_order_to_sort_text(max_candidates)
-        };
-        let show_filter_text_in_label = { self.config.read().await.show_filter_text_in_label };
         let is_selecting = new_input.is_selecting();
-        let preselect_enabled = { self.config.read().await.preselect_first };
+        let filter_text = filter_prefix.unwrap_or_default() + new_input.borrow_raw_text();
+
+        // update input state
+        *last_state = Some(InputState::new(
+            new_input,
+            session_id,
+            new_offset,
+            is_incomplete,
+        ));
+        drop(last_state);
+
+        // convert candidates to completions
+        let (show_filter_text_in_label, preselect_enabled, max_candidates) = {
+            let config = self.config.read().await;
+            (
+                config.show_filter_text_in_label,
+                config.preselect_first,
+                config.max_candidates,
+            )
+        };
+        let order_to_sort_text = utils::build_order_to_sort_text(max_candidates);
+
         let candidate_to_completion_item = |(i, c): (usize, Candidate)| -> CompletionItem {
             let text = match is_selecting {
                 true => submitted.clone() + &c.text,
                 false => c.text,
             };
             let mut label = match c.order {
-                0 => text.to_string(),
+                0 => text.clone(),
                 _ => format!("{}. {}", c.order, &text),
             };
             if show_filter_text_in_label {
@@ -245,21 +252,15 @@ impl Backend {
             }
         };
 
-        // update input state
-        *last_state = Some(InputState::new(
-            new_input,
-            session_id,
-            new_offset,
-            is_incomplete,
-        ));
-
         // return completions
+        let is_incomplete = self.config.read().await.always_incomplete || is_incomplete;
         let item_iter = candidates
             .into_iter()
             .enumerate()
             .map(candidate_to_completion_item);
+
         Some(CompletionList {
-            is_incomplete: (self.config.read().await.always_incomplete || is_incomplete),
+            is_incomplete,
             items: item_iter.collect(),
         })
     }
@@ -333,42 +334,31 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
-        self.on_change(TextDocumentItem {
-            language_id: String::from("text"),
-            uri: params.text_document.uri,
-            text: params.text_document.text,
-            version: params.text_document.version,
-        })
-        .await
+        let url = params.text_document.uri.into();
+        let rope = Rope::from(params.text_document.text);
+        self.documents.insert(url, rope);
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        for change in params.content_changes {
-            let TextDocumentContentChangeEvent {
-                range,
-                range_length: _,
-                text,
-            } = change;
-            if let Some(Range { start, end }) = range {
-                let mut rope = self
-                    .documents
-                    .get_mut(params.text_document.uri.as_str())
-                    .unwrap();
-                let s = utils::position_to_offset(&rope, start);
-                let e = utils::position_to_offset(&rope, end);
-                if let (Some(s), Some(e)) = (s, e) {
-                    rope.remove(s..e);
-                    rope.insert(s, &text);
+        let url = params.text_document.uri;
+        if let Some(mut rope) = self.documents.get_mut(url.as_str()) {
+            for change in params.content_changes {
+                let TextDocumentContentChangeEvent { range, text, .. } = change;
+                match range {
+                    // incremental change
+                    Some(Range { start, end }) => {
+                        let s = utils::position_to_offset(&rope, start);
+                        let e = utils::position_to_offset(&rope, end);
+                        if let (Some(s), Some(e)) = (s, e) {
+                            rope.remove(s..e);
+                            rope.insert(s, &text);
+                        }
+                    }
+                    // full content change
+                    None => {
+                        *rope = Rope::from(text);
+                    }
                 }
-            } else {
-                // text is full content
-                self.on_change(TextDocumentItem {
-                    uri: params.text_document.uri.clone(),
-                    language_id: String::from("text"),
-                    version: params.text_document.version,
-                    text,
-                })
-                .await
             }
         }
     }
@@ -381,8 +371,8 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        let uri = params.text_document.uri.to_string();
-        self.documents.remove(&uri);
+        let uri = params.text_document.uri.as_str();
+        self.documents.remove(uri);
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
@@ -391,7 +381,7 @@ impl LanguageServer for Backend {
         }
         let uri = params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        // TODO: Is it necessary to spawn another thread?
+
         let completions = self.get_completions(uri, position).await;
         Ok(completions.map(CompletionResponse::List))
     }
@@ -419,7 +409,6 @@ impl LanguageServer for Backend {
             }
             "rime-ls.sync-user-data" => {
                 self.notify_work_begin(token.clone(), command).await;
-                // TODO: do it in async way.
                 Rime::global().sync_user_data();
                 self.notify_work_done(token.clone(), "Rime is Ready.").await;
             }
