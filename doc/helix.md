@@ -1,7 +1,8 @@
 # helix 配置示例
 
-helix 自带了对 LSP 的支持，但目前使用 rime-ls 还存在一些小问题，
-现在属于勉强能用的状态，使用体验不太好。
+helix 自带 LSP 支持，只需要修改配置文件
+
+为了更好的用户体验，需要 rime-ls v0.3.0 及之后版本，并且配置 `config.long_filter_text = true`
 
 ## 使用方法
 

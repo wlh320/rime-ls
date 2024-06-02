@@ -30,11 +30,11 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 1. 下载 Release 或自己从源码编译
 2. 将编译好的二进制文件放在喜欢的目录下
 3. 配置 LSP 客戶端, 例如:
-    - [neovim + nvim-cmp](doc/nvim.md)
-    - [vim + coc.nvim](doc/vim.md)
-    - [vscode](doc/vscode.md)
-    - [helix](doc/helix.md)
-    - [zed](doc/zed.md)
+    - [Neovim + nvim-cmp](doc/nvim.md)
+    - [Vim + coc.nvim](doc/vim.md)
+    - [Vscode](doc/vscode.md)
+    - [Helix](doc/helix.md)
+    - [Zed](doc/zed.md)
 4. 像配置其他 Rime 输入法一样在 rime-ls 的用户目录进行配置
 5. 輸入拼音, 就可以看到补全提示
 6. 可以通过修改 rime-ls 的配置项控制补全行为

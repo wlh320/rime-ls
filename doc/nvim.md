@@ -1,8 +1,10 @@
 # neovim 配置示例
 
-以 neovim + nvim-cmp 为例
+作者目前没有实现官方 neovim 插件，建议根据实际使用情况自行配置。
 
-在配置文件中添加如下配置 (填入正确的程序路径和 rime 需要的目录)：
+以 neovim + nvim-cmp 为例，下面给出一些可行的配置方法 (须填入正确的程序路径和 rime 需要的目录)：
+
+## 为每个 buffer 开启一个 lsp server (不推荐)
 
 ```lua
 local start_rime = function()
@@ -44,6 +46,10 @@ vim.api.nvim_create_autocmd('BufReadPost', {
 
 ```
 
+以上配置进入文件便开启 LSP, 用快捷键切换是否开启补全
+
+## 按需调整 cmp 的排序
+
 cmp 会对补全候选进行排序,
 为了更好的使用体验, 还需要配置 nvim-cmp
 
@@ -74,84 +80,45 @@ cmp.setup {
 }
 ```
 
-以上配置进入文件便开启 LSP, 用快捷键切换是否开启补全
-
 ## 状态栏显示
 
 since v0.1.2, 可以参考以下配置在 lualine 显示 rime-ls 的当前状态:
 
 ```lua
-local M = {}
 
-function M.setup_rime()
-  -- maintain buffer only status
-  vim.b.rime_enabled = false
-  local toggle_rime = function(client_id)
-    vim.lsp.buf_request(0, 'workspace/executeCommand',
-      { command = "rime-ls.toggle-rime" },
-      function(_, result, ctx, _)
-        if ctx.client_id == client_id then
-          vim.b.rime_enabled = result
-        end
+-- toggle rime
+vim.b.rime_enabled = false
+local toggle_rime = function(client_id)
+  vim.lsp.buf_request(0, 'workspace/executeCommand',
+    { command = "rime-ls.toggle-rime" },
+    function(_, result, ctx, _)
+      if ctx.client_id == client_id then
+        vim.b.rime_enabled = result
       end
-    )
-  end
-
-  -- setup rime-ls
-  local start_rime = function()
-    local client_id = vim.lsp.start_client({
-      name = "rime-ls",
-      cmd = { 'rime_ls' },
-      init_options = {
-        enabled = false,
-        shared_data_dir = "/usr/share/rime-data",
-        user_data_dir = "~/.local/share/rime-ls",
-        log_dir = "~/.local/share/rime-ls",
-        max_candidates = 10, -- [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
-        trigger_characters = {},
-        schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
-      },
-    });
-    if client_id then
-      vim.lsp.buf_attach_client(0, client_id)
-      vim.keymap.set('n', '<leader><space>', function() toggle_rime(client_id) end)
-      vim.keymap.set('i', '<C-x>', function() toggle_rime(client_id) end)
     end
-  end
-
-  -- auto start
-  vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
-    callback = function()
-      start_rime()
-    end,
-    pattern = '*',
-  })
-
-  -- update lualine
-  local function rime_status()
-    if vim.b.rime_enabled then
-      return 'ㄓ'
-    else
-      return ''
-    end
-  end
-
-  require('lualine').setup({
-    sections = {
-      lualine_x = { rime_status, 'encoding', 'fileformat', 'filetype' },
-    }
-  })
+  )
 end
 
-return M
+-- update lualine
+local function rime_status()
+  if vim.b.rime_enabled then
+    return 'ㄓ'
+  else
+    return ''
+  end
+end
+
+require('lualine').setup({
+  sections = {
+    lualine_x = { rime_status, 'encoding', 'fileformat', 'filetype' },
+  }
+})
+
 ```
 
-例如存为 `lua/rime.lua` ，然后在 `init.lua` 里 `require('rime').setup_rime()`
+## 基于 lspconfig 的全局 LSP 状态
 
-
-## 全局状态
-
-以上配置比较简陋，对每个 buffer 开启一个 LSP server 实例，如果希望保持一个全局的输入法状态，可以参考以下配置，
+如果希望保持一个全局的输入法状态，可以参考以下配置，
 给 lspconfig 添加一个 custom server：
 
 ```lua
@@ -319,3 +286,10 @@ require('lspconfig').rime_ls.setup {
 }
 ```
 
+## 使用其他用户开发的插件
+
+目前没有官方实现的 neovim 插件，但已有用户将相关功能封装成了插件，例如：
+
+- [liubianshi/cmp-lsp-rimels](https://github.com/liubianshi/cmp-lsp-rimels)
+
+也可参考 issue 里其他用户的配置片段。

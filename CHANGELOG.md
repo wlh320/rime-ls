@@ -1,3 +1,26 @@
+# v0.3.0
+
+## Fix
+
+- 解决某些编辑器无法连续输入的问题：
+    - 为 Zed 和 Helix 增加配置项 `long_filter_text`
+    - 为 Zed 增加配置项 `show_filter_text_in_label`
+- 在查找补全串开头的时候应该从右到左搜索 (Thanks to TwIStOy in #21 )
+- 解决使用 dashmap 的一个死锁 (#16)
+
+## Feat
+
+- 增加 Dockerfile 方便通过 TCP 使用 (Thanks to Zwlin98 in #17)
+
+## Doc
+
+- 完善 macOS 下编译的文档 (Thanks to evpeople in #25)
+
+## Chore
+
+- 增加 Release 的编译脚本, 通过 `cargo-zigbuild` 和 `cargo-xwin` 交叉编译其他平台
+
+
 # v0.2.4
 
 ## Fix
