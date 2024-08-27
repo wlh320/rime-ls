@@ -83,7 +83,7 @@ pub fn expand_tilde(path: impl AsRef<Path>) -> PathBuf {
 /// rime's default shared data dir
 pub fn rime_default_shared_data_dir() -> &'static str {
     // read environment variable first
-    if let Some(var) = option_env!("RIME_DEFAULT_DATA_DIR") {
+    if let Some(var) = option_env!("RIME_DATA_DIR") {
         var
     } else if cfg!(target_os = "macos") {
         "/Library/Input Methods/Squirrel.app/Contents/SharedSupport"
