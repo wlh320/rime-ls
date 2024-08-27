@@ -101,7 +101,7 @@ impl Default for Config {
             always_incomplete: default_always_incomplete(),
             preselect_first: default_preselect_first(),
             long_filter_text: default_long_filter_text(),
-            show_filter_text_in_label: default_show_filter_text_in_label()
+            show_filter_text_in_label: default_show_filter_text_in_label(),
         }
     }
 }
@@ -131,7 +131,7 @@ fn default_paging_characters() -> Vec<String> {
 }
 
 fn default_shared_data_dir() -> PathBuf {
-    PathBuf::from("/usr/share/rime-data")
+    PathBuf::from(crate::utils::rime_default_shared_data_dir())
 }
 
 fn default_user_data_dir() -> PathBuf {

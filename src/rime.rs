@@ -1,7 +1,7 @@
 use crate::consts::{APP_NAME, KEY_BACKSPACE, KEY_ESCAPE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
-use std::ffi::{CStr, CString, NulError, c_char};
+use std::ffi::{c_char, CStr, CString, NulError};
 use std::sync::Mutex;
 use thiserror::Error;
 
@@ -298,14 +298,12 @@ impl Rime {
 
 #[test]
 fn test_get_candidates() {
-    let shared_data_dir = "/usr/share/rime-data/";
-    let base_dir = directories::BaseDirs::new().unwrap();
-    let data_dir = base_dir.data_dir().join("rime-ls-test");
-    let user_data_dir = data_dir.to_str().unwrap();
-    let log_dir = "/tmp";
+    let shared_data_dir = crate::utils::rime_default_shared_data_dir();
+    let temp_dir = std::env::temp_dir();
+    let temp_dir = temp_dir.to_str().unwrap();
 
     // init
-    Rime::init(shared_data_dir, user_data_dir, log_dir).unwrap();
+    Rime::init(shared_data_dir, temp_dir, temp_dir).unwrap();
     let rime = Rime::global();
     // simulate typing
     let keys = vec![b'w', b'l', b'h'];

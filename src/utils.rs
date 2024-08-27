@@ -80,6 +80,20 @@ pub fn expand_tilde(path: impl AsRef<Path>) -> PathBuf {
     home_dir.join(path.as_ref().strip_prefix("~").unwrap())
 }
 
+/// rime's default shared data dir
+pub fn rime_default_shared_data_dir() -> &'static str {
+    // read environment variable first
+    if let Some(var) = option_env!("RIME_DEFAULT_DATA_DIR") {
+        var
+    } else if cfg!(target_os = "macos") {
+        "/Library/Input Methods/Squirrel.app/Contents/SharedSupport"
+    } else {
+        // cannot determine shared data dir on windows
+        // Ref: https://github.com/rime/home/wiki/SharedData
+        "/usr/share/rime-data"
+    }
+}
+
 #[inline]
 fn char_is_word(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_'
