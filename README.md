@@ -27,6 +27,8 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 > **Warning**
 > 第一次启动时 rime 需要做大量工作, 可能会很慢
 
+### 直接使用
+
 1. 下载 Release 或自己从源码编译
 2. 将编译好的二进制文件放在喜欢的目录下
 3. 配置 LSP 客戶端, 例如:
@@ -38,6 +40,17 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 4. 像配置其他 Rime 输入法一样在 rime-ls 的用户目录进行配置
 5. 輸入拼音, 就可以看到补全提示
 6. 可以通过修改 rime-ls 的配置项控制补全行为
+
+### 通过容器使用
+
+1. 下载或自行编译 rime-ls 的 docker 镜像
+2. 根据使用需求参考 docker-compose.yaml 以合适的参数运行容器
+3. 其他同上。注意配置客户端时需要使用容器内部的路径
+
+> **Tip**
+> 容器中不包含 Rime 内置输入方案的数据。使用时可以根据需要映射到 `/usr/share/rime-data` 目录，
+> 或者使用 [rime-ice](https://github.com/iDvel/rime-ice/releases/tag/nightly) 
+> 等不依赖 Rime 内置输入方案的方案。
 
 ## Build
 

@@ -1,11 +1,14 @@
-version: "3"
-
+version: '3'
 services:
   rime-ls:
-    restart: always
     build: .
+    restart: always
+    # [optional] use over TCP
+    command: --listen 0.0.0.0:9257
     ports:
       - 9257:9257
     volumes:
+      # [optional] mount your rime shared data
+      - /path/to/rime-data:/usr/share/rime-data
       # mount your rime user data
-      - /root/.config/my_rime:/root/.local/share/rime-ls
+      - /path/to/user/data:/root/.local/share/rime-ls
