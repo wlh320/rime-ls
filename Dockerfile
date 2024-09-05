@@ -1,4 +1,4 @@
-FROM alpine:edge as builder
+FROM alpine:edge AS builder
 
 # 1. build rime plugins from source
 ## 1.1 install dependencies
@@ -30,7 +30,7 @@ RUN cmake -B build -G Ninja \
         -DBUILD_MERGED_PLUGINS=OFF \
         -DBUILD_TEST=ON \
         -DENABLE_EXTERNAL_PLUGINS=ON
-RUN cmake --build build
+RUN cmake --build build --target rime-lua rime-charcode rime-octagram rime-predict
 
 # 2. build rime-ls
 RUN apk add --no-cache rust cargo musl-dev clang16-libclang librime-dev

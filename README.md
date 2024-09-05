@@ -24,7 +24,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ## Usage
 
-> **Warning**
+> [!WARNING]
 > 第一次启动时 rime 需要做大量工作, 可能会很慢
 
 ### 直接使用
@@ -43,11 +43,11 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ### 通过容器使用
 
-1. 下载或自行编译 rime-ls 的 docker 镜像
+1. 下载或自行编译 rime-ls 的 docker 镜像，例如 `docker pull ghcr.io/wlh320/rime-ls:master`
 2. 根据使用需求参考 docker-compose.yaml 以合适的参数运行容器
 3. 其他同上。注意配置客户端时需要使用容器内部的路径
 
-> **Tip**
+> [!TIP]
 > 容器中不包含 Rime 内置输入方案的数据。使用时可以根据需要映射到 `/usr/share/rime-data` 目录，
 > 或者使用 [rime-ice](https://github.com/iDvel/rime-ice/releases/tag/nightly) 
 > 等不依赖 Rime 内置输入方案的方案。
