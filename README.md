@@ -127,8 +127,8 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
     ```bash
     # 用于编译 
-    export LIBRIME_LIB_DIR= /usr/local/lib
-    export LIBRIME_INCLUDE_DIR= /usr/local/include
+    export LIBRIME_LIB_DIR=/usr/local/lib
+    export LIBRIME_INCLUDE_DIR=/usr/local/include
     # 用于运行
     export DYLD_LIBRARY_PATH=/usr/local/lib  # 最好放在~/.zshrc中，记得修改~/.zshrc 后，source ~/.zshrc 
     ```
