@@ -140,10 +140,9 @@ impl Rime {
 
     pub fn destroy(&self) {
         if RIME.get().is_some() {
-            unsafe {
-                librime::RimeCleanupAllSessions();
-                librime::RimeFinalize();
-            }
+            let api = Self::get_api();
+            rime_call!(api->cleanup_all_sessions);
+            rime_call!(api->finalize);
         }
     }
 
