@@ -93,6 +93,7 @@ impl Backend {
         apply_setting!(config <- settings.preselect_first);
         apply_setting!(config <- settings.long_filter_text);
         apply_setting!(config <- settings.show_filter_text_in_label);
+        apply_setting!(config <- settings.show_order_in_label);
     }
 
     async fn create_work_done_progress(&self, token: NumberOrString) -> Result<NumberOrString> {
@@ -213,10 +214,11 @@ impl Backend {
         drop(last_state);
 
         // convert candidates to completions
-        let (show_filter_text_in_label, preselect_enabled, max_candidates) = {
+        let (show_filter_text_in_label, show_order_in_label, preselect_enabled, max_candidates) = {
             let config = self.config.read().await;
             (
                 config.show_filter_text_in_label,
+                config.show_order_in_label,
                 config.preselect_first,
                 config.max_candidates,
             )
@@ -230,7 +232,8 @@ impl Backend {
             };
             let mut label = match c.order {
                 0 => text.clone(),
-                _ => format!("{}. {}", c.order, &text),
+                _ if show_order_in_label => format!("{}. {}", c.order, &text),
+                _ => text.clone(),
             };
             if show_filter_text_in_label {
                 label += &format!(" ({})", filter_text);
