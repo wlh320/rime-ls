@@ -5,13 +5,25 @@ use std::ffi::{c_char, CStr, CString, NulError};
 use std::sync::Mutex;
 use thiserror::Error;
 
-macro_rules! rime_struct_init {
+macro_rules! rime_struct {
     ($type:ty) => {{
         let mut var: $type = unsafe { std::mem::zeroed() };
         var.data_size =
             (std::mem::size_of::<$type>() - std::mem::size_of_val(&var.data_size)) as i32;
         var
     }};
+}
+
+macro_rules! rime_call {
+    ( $api_struct:ident -> $api_fn:ident $(, $arg:expr)* ) => {
+        {
+            let api = unsafe { *$api_struct };
+            let api_fn = api.$api_fn.expect(
+                format!("missing api function: {}", stringify!($api_fn)).as_str()
+            );
+            unsafe { api_fn($($arg),*) }
+        }
+    };
 }
 
 /// global rime instance
@@ -75,6 +87,10 @@ impl Rime {
         RIME.get().is_some()
     }
 
+    pub fn get_api() -> *mut librime::RimeApi {
+        unsafe { librime::rime_get_api() }
+    }
+
     pub fn init(
         shared_data_dir: &str,
         user_data_dir: &str,
@@ -83,7 +99,7 @@ impl Rime {
         if Rime::is_initialized() {
             Err(RimeError::AlreadyInitialized)?
         }
-        let mut traits = rime_struct_init!(librime::RimeTraits);
+        let mut traits = rime_struct!(librime::RimeTraits);
 
         // set dirs
         traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
@@ -101,12 +117,13 @@ impl Rime {
         // note: app_name is passed to glog as `const char*` without being copied to a std::string
         traits.app_name = APP_NAME.as_ptr() as *mut c_char;
 
+        let api = Self::get_api();
+        rime_call!(api->setup, &mut traits);
+        rime_call!(api->initialize, &mut traits);
+        if rime_call!(api->start_maintenance, 0) != 0 {
+            rime_call!(api->join_maintenance_thread);
+        }
         unsafe {
-            librime::RimeSetup(&mut traits);
-            librime::RimeInitialize(&mut traits);
-            if librime::RimeStartMaintenanceOnWorkspaceChange() != 0 {
-                librime::RimeJoinMaintenanceThread();
-            }
             // retake pointer
             let _ = CString::from_raw(traits.shared_data_dir as *mut c_char);
             let _ = CString::from_raw(traits.user_data_dir as *mut c_char);
@@ -160,29 +177,24 @@ impl Rime {
     }
 
     pub fn get_raw_input(&self, session_id: usize) -> Option<String> {
-        let api = unsafe { librime::rime_get_api() };
-        (!api.is_null())
-            .then(|| unsafe { *api })
-            .and_then(|api| api.get_input)
-            .and_then(|get_input| unsafe {
-                let ptr = get_input(session_id);
-                CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_owned())
-            })
+        let api = Self::get_api();
+        let ptr = rime_call!(api->get_input, session_id);
+        unsafe { CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_owned()) }
     }
 
     fn get_commit_text(&self, session_id: usize) -> Option<String> {
-        let mut commit = rime_struct_init!(librime::RimeCommit);
+        let api = Self::get_api();
+        let mut commit = rime_struct!(librime::RimeCommit);
         let mut ans: Option<String> = None;
-        unsafe {
-            librime::RimeGetCommit(session_id, &mut commit);
-            if !commit.text.is_null() {
-                ans = CStr::from_ptr(commit.text)
-                    .to_str()
-                    .ok()
-                    .map(|s| s.to_string());
-            }
-            librime::RimeFreeCommit(&mut commit);
+
+        rime_call!(api->get_commit, session_id, &mut commit);
+        if !commit.text.is_null() {
+            ans = unsafe { CStr::from_ptr(commit.text) }
+                .to_str()
+                .ok()
+                .map(|s| s.to_string());
         }
+        rime_call!(api->free_commit, &mut commit);
         ans
     }
 
@@ -198,16 +210,14 @@ impl Rime {
     }
 
     pub fn get_response_from_session(&self, session_id: usize) -> Result<RimeResponse, RimeError> {
-        unsafe {
-            if librime::RimeFindSession(session_id) == 0 {
-                return Err(RimeError::SessionNotFound(session_id));
-            }
+        let api = Self::get_api();
+        if rime_call!(api->find_session, session_id) == 0 {
+            return Err(RimeError::SessionNotFound(session_id));
         }
         // create context
-        let mut context = rime_struct_init!(librime::RimeContext);
-        unsafe {
-            librime::RimeGetContext(session_id, &mut context);
-        }
+        let mut context = rime_struct!(librime::RimeContext);
+        rime_call!(api->get_context, session_id, &mut context);
+
         // get partially submitted text
         let preedit = self.get_joined_preedit(&context);
         let submitted = preedit
@@ -229,9 +239,7 @@ impl Rime {
                 .unwrap_or_default()
         });
         // free context
-        unsafe {
-            librime::RimeFreeContext(&mut context);
-        }
+        rime_call!(api->free_context, &mut context);
         candidates.map(|candidates| RimeResponse {
             is_incomplete,
             submitted,
@@ -240,59 +248,53 @@ impl Rime {
     }
 
     pub fn create_session(&self) -> usize {
-        unsafe { librime::RimeCreateSession() }
+        let api = Self::get_api();
+        rime_call!(api->create_session)
     }
 
     /// if session_id does not exist, create a new one
     pub fn find_session(&self, session_id: usize) -> usize {
-        unsafe {
-            match librime::RimeFindSession(session_id) {
-                0 => librime::RimeCreateSession(),
-                _ => session_id,
-            }
+        let api = Self::get_api();
+        match rime_call!(api->find_session, session_id) {
+            0 => rime_call!(api->create_session),
+            _ => session_id,
         }
     }
 
     pub fn process_key(&self, session_id: usize, key: i32) {
-        unsafe {
-            if librime::RimeFindSession(session_id) != 0 {
-                librime::RimeProcessKey(session_id, key, 0);
-            }
-        }
+        let api = Self::get_api();
+        rime_call!(api->process_key, session_id, key, 0);
     }
 
     pub fn process_str(&self, session_id: usize, keys: &str) {
+        let api = Self::get_api();
         for key in keys.bytes() {
-            self.process_key(session_id, key as i32);
+            rime_call!(api->process_key, session_id, key as i32, 0);
         }
     }
 
     pub fn delete_keys(&self, session_id: usize, len: usize) {
+        let api = Self::get_api();
         for _ in 0..len {
-            self.process_key(session_id, KEY_BACKSPACE);
+            rime_call!(api->process_key, session_id, KEY_BACKSPACE, 0);
         }
     }
 
     pub fn destroy_session(&self, session_id: usize) {
-        unsafe {
-            if librime::RimeFindSession(session_id) != 0 {
-                librime::RimeDestroySession(session_id);
-            }
-        }
+        let api = Self::get_api();
+        rime_call!(api->destroy_session, session_id);
     }
 
     pub fn clear_composition(&self, session_id: usize) {
-        unsafe {
-            self.process_key(session_id, KEY_ESCAPE);
-            librime::RimeClearComposition(session_id);
-        }
+        let api = Self::get_api();
+        rime_call!(api->process_key, session_id, KEY_ESCAPE, 0);
+        rime_call!(api->clear_composition, session_id);
     }
 
     pub fn sync_user_data(&self) {
-        unsafe {
-            librime::RimeSyncUserData();
-            librime::RimeJoinMaintenanceThread();
-        }
+        let api = Self::get_api();
+        rime_call!(api->sync_user_data);
+        rime_call!(api->join_maintenance_thread);
     }
 }
 
