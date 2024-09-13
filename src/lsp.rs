@@ -164,13 +164,15 @@ impl Backend {
             session_id,
             raw_input,
         } = match (*last_state).as_ref() {
-            Some(state) => state.handle_new_input(
-                new_offset,
-                &new_input,
-                &self.config.read().await.schema_trigger_character,
-                self.config.read().await.max_tokens,
-            ),
-            None => InputState::handle_first_state(&new_input),
+            Some(state) => {
+                let schema_trigger = &self.config.read().await.schema_trigger_character;
+                let max_tokens = self.config.read().await.max_tokens;
+                state.handle_new_input(new_offset, &new_input, schema_trigger, max_tokens)
+            }
+            None => {
+                let schema_trigger = &self.config.read().await.schema_trigger_character;
+                InputState::handle_first_input(&new_input, schema_trigger)
+            }
         };
 
         // prevent deleting puncts before real pinyin input
@@ -224,7 +226,6 @@ impl Backend {
             )
         };
         let order_to_sort_text = utils::build_order_to_sort_text(max_candidates);
-
         let candidate_to_completion_item = |(i, c): (usize, Candidate)| -> CompletionItem {
             let text = match is_selecting {
                 true => submitted.clone() + &c.text,

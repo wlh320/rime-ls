@@ -251,13 +251,10 @@ impl Rime {
         rime_call!(api->create_session)
     }
 
-    /// if session_id does not exist, create a new one
-    pub fn find_session(&self, session_id: usize) -> usize {
+    /// return if session exists
+    pub fn find_session(&self, session_id: usize) -> bool {
         let api = Self::get_api();
-        match rime_call!(api->find_session, session_id) {
-            0 => rime_call!(api->create_session),
-            _ => session_id,
-        }
+        rime_call!(api->find_session, session_id) != 0
     }
 
     pub fn process_key(&self, session_id: usize, key: i32) {

@@ -102,10 +102,14 @@ impl InputState {
         }
     }
 
-    pub fn handle_first_state(new_input: &Input) -> InputResult {
+    pub fn handle_first_input(new_input: &Input, schema_trigger: &str) -> InputResult {
         let rime = Rime::global();
         let session_id = rime.create_session();
-        Self::handle_new_typing(session_id, new_input)
+        if !schema_trigger.is_empty() && new_input.borrow_pinyin() == &schema_trigger {
+            Self::handle_schema(session_id)
+        } else {
+            Self::handle_new_typing(session_id, new_input)
+        }
     }
 
     pub fn handle_new_input(
@@ -116,17 +120,13 @@ impl InputState {
         max_tokens: usize,
     ) -> InputResult {
         let rime = Rime::global();
-        let session_id = rime.find_session(self.session_id);
-        // new typing
-        if self.offset != new_offset || self.session_id != session_id || !self.is_incomplete {
-            rime.clear_composition(session_id);
-            if !schema_trigger.is_empty() && new_input.borrow_pinyin() == &schema_trigger {
-                return Self::handle_schema(session_id);
-            } else {
-                return Self::handle_new_typing(session_id, new_input);
-            }
+        let has_session = rime.find_session(self.session_id);
+        // new typing (create new session)
+        if self.offset != new_offset || !has_session || !self.is_incomplete {
+            return Self::handle_first_input(new_input, schema_trigger);
         }
-        // continue last typing
+        // continue last typing (with last session)
+        let session_id = self.session_id;
         // handle pinyin
         let diff_pinyin = diff(self.input.borrow_pinyin(), new_input.borrow_pinyin());
         match diff_pinyin {
