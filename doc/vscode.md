@@ -9,44 +9,42 @@
 
 ```typescript
 export function activate(context: vscode.ExtensionContext) {
+  // Server
+  const executable = {
+    command: "C:\\Users\\wlh23\\.local\\bin\\rime_ls.exe",
+    args: [],
+  };
+  const serverOptions: ServerOptions = {
+    run: executable,
+    debug: executable,
+  };
 
-	// Server
-	const executable = {
-		command: "C:\\Users\\wlh23\\.local\\bin\\rime_ls.exe",
-		args: []
-	};
-	const serverOptions: ServerOptions = {
-		run: executable,
-		debug: executable,
-	};
+  // Client
+  const clientOptions: LanguageClientOptions = {
+    // Register the server for plain text documents
+    documentSelector: [{ scheme: "file", language: "plaintext" }],
+    initializationOptions: {
+      shared_data_dir: "C:\\Program Files (x86)\\Rime\\weasel-0.14.3\\data", // rime 公共目录
+      user_data_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 指定用户目录, 最好新建一个
+      log_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 日志目录
+      max_candidates: 10,
+      trigger_characters: [],
+      schema_trigger_character: "&",
+    },
+  };
+  console.log(clientOptions);
 
-	// Client
-	const clientOptions: LanguageClientOptions = {
-		// Register the server for plain text documents
-		documentSelector: [{ scheme: 'file', language: 'plaintext' }],
-		initializationOptions: {
-			shared_data_dir: "C:\\Program Files (x86)\\Rime\\weasel-0.14.3\\data", // rime 公共目录
-			user_data_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 指定用户目录, 最好新建一个
-			log_dir: "C:\\Users\\wlh23\\AppData\\Roaming\\Rime", // 日志目录
-			max_candidates: 10,
-			trigger_characters: [],
-			schema_trigger_character: "&",
-		}
-	};
-	console.log(clientOptions);
+  // Create the language client and start the client.
+  client = new LanguageClient(
+    "Rime_LSP_Example",
+    "Rime LSP Example",
+    serverOptions,
+    clientOptions,
+  );
 
-	// Create the language client and start the client.
-	client = new LanguageClient(
-		'Rime_LSP_Example',
-		'Rime LSP Example',
-		serverOptions,
-		clientOptions
-	);
-
-	// Start the client. This will also launch the server
-	client.start();
-};
+  // Start the client. This will also launch the server
+  client.start();
+}
 ```
 
 只是简单验证了是可用的, 但是目前的使用体验并不好
-

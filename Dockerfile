@@ -2,8 +2,8 @@ FROM alpine:edge AS builder
 
 # 1. build rime plugins from source
 ## 1.1 install dependencies
-RUN apk add --no-cache boost-dev capnproto-dev chrpath cmake \ 
-glog-dev leveldb-dev libmarisa-dev opencc-dev \ 
+RUN apk add --no-cache boost-dev capnproto-dev chrpath cmake \
+glog-dev leveldb-dev libmarisa-dev opencc-dev \
 samurai yaml-cpp-dev git bash clang gtest-dev
 
 ## 1.1 clone git repo
