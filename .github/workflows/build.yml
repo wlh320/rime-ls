@@ -7,7 +7,7 @@ on:
       - 'README.md'
 
 jobs:
-  build:
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -24,3 +24,24 @@ jobs:
       - name: Build
         run: |
           cargo build --release
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+      - uses: MinoruSekine/setup-scoop@v4.0.1
+        with:
+          buckets: extras
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -eux -o pipefail
+          scoop bucket add wsw0108 https://github.com/wsw0108/scoop-bucket.git
+          scoop install gcc wget librime
+          wget https://github.com/rime/librime/releases/download/1.11.2/rime-5b09f35-Windows-msvc-x64.7z -O rime.7z
+          7z x rime.7z
+          LIBRIME_INCLUDE_DIR=$PWD/dist/include LIBRIME_LIB_DIR=$PWD/dist/lib LIB=$PWD/dist/lib cargo build --release
