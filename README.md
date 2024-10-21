@@ -133,7 +133,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ### Windows
 
-1. 配置 Rust 环境, 安装额外依赖 `clang` 和 `librime`
+1. 配置 Rust 环境, 安装额外依赖 `librime`
 2. 通过 librime 的 [Release](https://github.com/rime/librime/releases/) 下载 windows 版本，例如 `rime-xxxx-Windows-msvc-x64.7z`，解压至某个目录
 3. 设置环境变量以便编译时找到 librime 的相关文件，在 powershell 下可以：
    ```powershell
