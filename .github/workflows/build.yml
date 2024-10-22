@@ -44,3 +44,20 @@ jobs:
           wget https://github.com/rime/librime/releases/download/1.11.2/rime-5b09f35-Windows-msvc-x64.7z -O rime.7z
           7z x rime.7z
           LIBRIME_INCLUDE_DIR=$PWD/dist/include LIBRIME_LIB_DIR=$PWD/dist/lib LIB=$PWD/dist/lib cargo build --release
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -eux -o pipefail
+          wget https://github.com/rime/librime/releases/download/1.11.2/rime-5b09f35-macOS-universal.tar.bz2 -O rime.tar.bz2
+          7z x rime.tar.bz2
+          7z x rime.tar
+          LIBRIME_INCLUDE_DIR=$PWD/dist/include LIBRIME_LIB_DIR=$PWD/dist/lib LIB=$PWD/dist/lib cargo build --release
