@@ -213,7 +213,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 - [ ] 測試其他 LSP clients
 - [x] 测试不同操作系统和 librime 版本
 - [ ] 测试与不同 rime 配置的兼容性
-- [ ] 配置 GitHub CI，编译各个平台的 Release
+- [x] 配置 GitHub CI，编译各个平台的 Release
 - [ ] 各种编辑器插件 (help wanted)
 
 ## Known Issues
