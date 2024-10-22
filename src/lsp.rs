@@ -1,7 +1,8 @@
 use dashmap::DashMap;
 use regex::Regex;
 use ropey::Rope;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::borrow::Cow;
 use tokio::sync::RwLock;
 use tower_lsp::jsonrpc::Result;
@@ -20,6 +21,12 @@ pub struct Backend {
     state: DashMap<String, Option<InputState>>,
     config: RwLock<Config>,
     regex: RwLock<Regex>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct FirstCompleteText {
+    input: String,
+    text: String,
 }
 
 impl Backend {
@@ -268,6 +275,46 @@ impl Backend {
             items: item_iter.collect(),
         })
     }
+
+    async fn get_first_completion_by_text(&self, text: String) -> Option<FirstCompleteText> {
+        let new_input: Input = {
+            let re = self.regex.read().await;
+            let has_trigger = !self.config.read().await.trigger_characters.is_empty();
+            if utils::need_to_check_trigger(has_trigger, &text) {
+                Input::from_str(&re, &text)
+            } else {
+                Input::from_str(&NT_RE, &text)
+            }
+        }?;
+
+        let schema_trigger = &self.config.read().await.schema_trigger_character;
+        let InputResult {
+            session_id,
+            raw_input: _,
+        } = InputState::handle_first_input(&new_input, schema_trigger);
+
+        let rime = Rime::global();
+        let RimeResponse {
+            is_incomplete: _,
+            submitted: _,
+            candidates,
+        } = match rime.get_response_from_session(session_id) {
+            Ok(r) => r,
+            Err(e) => {
+                self.client.log_message(MessageType::ERROR, e).await;
+                None?
+            }
+        };
+
+        let item = candidates.first();
+        if let Some(item) = item {
+            return Some(FirstCompleteText {
+                input: new_input.borrow_raw_text().to_owned(),
+                text: item.text.clone(),
+            });
+        }
+        None
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -323,6 +370,7 @@ impl LanguageServer for Backend {
                     commands: vec![
                         "rime-ls.toggle-rime".to_string(),
                         "rime-ls.sync-user-data".to_string(),
+                        "rime-ls.get-first-candidate".to_string(),
                     ],
                     work_done_progress_options: WorkDoneProgressOptions {
                         work_done_progress: Some(true),
@@ -415,6 +463,21 @@ impl LanguageServer for Backend {
                 self.notify_work_begin(token.clone(), command).await;
                 Rime::global().sync_user_data();
                 self.notify_work_done(token.clone(), "Rime is Ready.").await;
+            }
+            "rime-ls.get-first-candidate" => {
+                self.notify_work_begin(token.clone(), command).await;
+                let input = params.arguments.get(0).and_then(|s| s.as_str());
+                let mut result_json = None;
+                if let Some(input) = input {
+                    // result json example: { 'input': 'nihao', 'text': '你好' }
+                    result_json = self
+                        .get_first_completion_by_text(input.to_string())
+                        .await
+                        .map(|r| json!(r));
+                }
+                self.notify_work_done(token.clone(), "Rime is confirmed.")
+                    .await;
+                return Ok(result_json);
             }
             _ => {
                 self.client

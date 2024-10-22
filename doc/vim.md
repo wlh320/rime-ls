@@ -33,11 +33,47 @@
 }
 ```
 
-没有完全测试过, 理论上其他 LSP 能怎么用就可以怎么用
+## 发送 execute command 命令, 手动 toggle
 
-补充: 通过 `:call CocRequest('rime-ls', 'workspace/executeCommand', { 'command': 'rime-ls.toggle-rime' })`
-可以手动控制开启和关闭
+通过 `:call CocAction('runCommand', 'rime-ls.toggle-rime')` 可以手动控制开启和关闭
 
-# TODO
+## 使用命令来补全输入, 而不是等待候选词出现
 
-- [x] 发送 execute command 命令, 手动 toggle
+```vim
+function! RimeConfirmCol(col)
+  call setcursorcharpos('.', a:col)
+  return ''
+endfunction
+
+function! RimeConfirm()
+  let line = getline('.')
+  let [_, _, col, _, _] = getcursorcharpos()
+  let col -= 1
+  let input = slice(line, 0, col)
+  let result = CocAction('runCommand', 'rime-ls.get-first-candidate', input)
+  if result is v:null
+    return ""
+  endif
+  let text = result['text']
+  let real_input = result['input']
+  let start_width = col-strchars(real_input)
+  let start_text = slice(line, 0, start_width)
+  let end_text = slice(line, col)
+  call setline('.', '')
+  return start_text . text . end_text . "\<C-r>=RimeConfirmCol(" . (start_width + strchars(text) + 1) . ")\<CR>"
+endfunction
+
+function! RimeToggle()
+  let rime_enable = CocAction('runCommand', 'rime-ls.toggle-rime')
+  if rime_enable
+    inoremap <silent> <Space> <C-r>=RimeConfirm()<CR>
+    echomsg 'Rime enable'
+  else
+    iunmap <silent><expr> <Space>
+    echomsg 'Rime disable'
+  endif
+  return ''
+endfunction
+
+command! RimeToggle call RimeToggle()
+```
