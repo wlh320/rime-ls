@@ -40,8 +40,7 @@ jobs:
         shell: bash
         run: |
           set -eux -o pipefail
-          scoop bucket add wsw0108 https://github.com/wsw0108/scoop-bucket.git
-          scoop install gcc wget librime
+          scoop install wget
           wget https://github.com/rime/librime/releases/download/1.11.2/rime-5b09f35-Windows-msvc-x64.7z -O rime.7z
           7z x rime.7z
           LIBRIME_INCLUDE_DIR=$PWD/dist/include LIBRIME_LIB_DIR=$PWD/dist/lib LIB=$PWD/dist/lib cargo build --release
