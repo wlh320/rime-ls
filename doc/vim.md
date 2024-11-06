@@ -52,7 +52,7 @@ function! RimeConfirm()
   let input = slice(line, 0, col)
   let result = CocAction('runCommand', 'rime-ls.get-first-candidate', input)
   if result is v:null
-    return ""
+    return "\<Space>"
   endif
   let text = result['text']
   let real_input = result['input']
