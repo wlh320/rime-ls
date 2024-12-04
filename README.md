@@ -1,6 +1,8 @@
 # rime-ls
 
-为 rime 输入法核心库 librime (的部分功能) 实现 LSP 协议, 从而通过编辑器的代码补全功能输入汉字.
+> A language server that provides input method functionality using librime.
+
+为 rime 输入法核心库 [librime](https://github.com/rime/librime) (的部分功能) 实现 LSP 协议，从而将编辑器的代码补全功能当作输入法使用。
 
 项目还处在**早期阶段**
 
@@ -21,6 +23,8 @@
 - 可以通过 TCP 远程使用 (无任何加密，谨慎使用) (since v0.1.3)
 
 https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-bd85-81da2bd2957f.mp4
+
+更多编辑器（nvim, helix, zed, 甚至 qt-creator）的演示效果见 [Showcase](https://github.com/wlh320/rime-ls/wiki/%E6%A1%88%E4%BE%8B%E5%B1%95%E7%A4%BA-Showcase)
 
 ## Usage
 
@@ -52,7 +56,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 > 或者使用 [rime-ice](https://github.com/iDvel/rime-ice/releases/tag/nightly)
 > 等不依赖 Rime 内置输入方案的方案。
 
-## Config
+## Configuration
 
 所有可配置项及其默认值（以 json 为例）:
 
