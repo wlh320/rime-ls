@@ -36,7 +36,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 1. 下载 Release 或自己从源码编译
 2. 将编译好的二进制文件放在喜欢的目录下
 3. 配置 LSP 客戶端, 例如:
-   - [Neovim + nvim-cmp](doc/nvim.md)
+   - [Neovim + nvim-cmp](doc/nvim-with-cmp.md)
    - [Vim + coc.nvim](doc/vim.md)
    - [Vscode](doc/vscode.md)
    - [Helix](doc/helix.md)
