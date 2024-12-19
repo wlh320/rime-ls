@@ -220,9 +220,11 @@ require('lualine').setup({
 
 # 特定 buffer 无法使用问题
 
+相关 issue ：[copilot-chat窗口不能正常触发](https://github.com/wlh320/rime-ls/issues/29)。
+
 该问题往往是因为这些 buffer 被设置了 hidden 属性，导致 rime-ls 没有启动。
 可以通过运行 `:LspStart rime_ls` 来手动启动 rime-ls，
-或者使用以下自动命令（这里两种方法均需要使用全局 LSP 配制）：
+或者使用以下自动命令（这里两种方法均需要使用全局 LSP 配置）：
 
 ```lua
 -- update the variable to your needs
@@ -243,7 +245,7 @@ vim.api.nvim_create_autocmd('FileType', {
 })
 ```
 
-即使有了上面的配制，在 No Name 文件中依然不能自动启动，对于这种情况，需要先保存 No Name 文件，
+即使有了上面的配置，在 No Name 文件中依然不能自动启动，对于这种情况，需要先保存 No Name 文件，
 然后再重新打开。
 
 # 通过 TCP 远程使用
@@ -252,10 +254,10 @@ vim.api.nvim_create_autocmd('FileType', {
 
 # 还原输入法体验
 
-这部分配制来自 [使用 nvim-cmp + rime-ls 配置 nvim 中文输入法](https://kaiser-yang.github.io/blog/2024/nvim-input-method/)。
+这部分配置来自 [使用 nvim-cmp + rime-ls 配置 nvim 中文输入法](https://kaiser-yang.github.io/blog/2024/nvim-input-method/)。
 
 为了不影响其他不需要中文输入地方的体验，这一部分的实现逻辑是在启动 rime-ls 时增加 key-mapping ，
-关闭时删除 key-mapping 实现。因此配制的整体结构如下：
+关闭时删除 key-mapping 实现。因此配置的整体结构如下：
 
 ```lua
 map.set({ 'n', 'i' }, '<c-space>', function()
@@ -377,7 +379,7 @@ end
 
 **注意**：后文使用的按键可能被某些插件绑定了一些其他的功能
 （例如 `auto-pairs` 绑定 `<space>` 来在括号中插入两个空格），或者你自己绑定了一些功能，
-如果你想同时保留两部分功能，你可以参考 <a href="#use-space-to-upload">空格上屏</a> 部分的配制。
+如果你想同时保留两部分功能，你可以参考 <a href="#use-space-to-upload">空格上屏</a> 部分的配置。
 
 ## <a id="use-space-to-upload">空格上屏</a>
 
@@ -456,6 +458,8 @@ end, opts())
 
 ## 数字键选择
 
+相关 issue ：[用数字选词以后还需要一次空格才能上屏幕](https://github.com/wlh320/rime-ls/issues/20)。
+
 ```lua
 for numkey = 1, 9 do
     local numkey_str = tostring(numkey)
@@ -477,9 +481,11 @@ end
 
 ## 中文标点
 
+相关 issue ：[英文标点符号后空格才能触发补全](https://github.com/wlh320/rime-ls/issues/10)。
+
 如果使用 `rime-ls` 进行标点输入，因为 lsp 的特性必须伴随一次选择才能触发上屏，
 所以在输入标点时会有一些不同的体验。这里提供一种解决方案，即在输入标点时，先输入标点，
-然后再输入空格来实现插入中文标点, 首先设置 rime-ls 为西方标点模式，然后增加如下配制：
+然后再输入空格来实现插入中文标点, 首先设置 rime-ls 为西方标点模式，然后增加如下配置：
 
 ```lua
 local mapped_punc = {
@@ -506,6 +512,25 @@ for k, v in pairs(mapped_punc) do
 end
 ```
 
+## 输入过快补全列表消失
+
+相关 issue ：[feat: add rime-ls.get-first-candidate command](https://github.com/wlh320/rime-ls/pull/41)。
+
+该情况指用户在输入过快时，补全列表会消失，导致内容与预期不一致。
+这里主要通过 `vim.schedule` 保证输入按键在补全发生后触发，这样快速输入会卡顿，
+但能保证内容与预期一致。
+
+```lua
+-- the alphabet your schema used，usually is "abcdefghijklmnopqrstuvwxyz"
+local alphabet = "abcdefghijklmnopqrstuvwxyz"
+for i = 1, #alphabet do
+    local k = alphabet:sub(i, i)
+    map.set({ 'i' }, k, function()
+        feed_key(k, k)
+    end, opts())
+end
+```
+
 ## 五笔或者双形用户
 
 确保 `max_token` 为最大码长，`always_incomplete` 为 `true`，这样可以保证每次输入都会重新生成候选词。
@@ -524,6 +549,8 @@ require('lspconfig').rime_ls.setup {
 ```
 
 ### 顶字上屏 + 快速输入不中断
+
+相关 issue ：[如何实现顶字上屏](https://github.com/wlh320/rime-ls/issues/43)。
 
 ```lua
 -- the alphabet your schema used，usually is "abcdefghijklmnopqrstuvwxyz"
@@ -569,7 +596,7 @@ for i = 1, #alphabet do
 end
 ```
 
-## 完整配制
+## 完整配置
 
 查看 [kaiser-rime-ls](https://github.com/Kaiser-Yang/dotfiles/blob/main/.config/nvim/lua/key_mapping.lua#L656-L836) 。
 
@@ -579,4 +606,4 @@ end
 
 - [liubianshi/cmp-lsp-rimels](https://github.com/liubianshi/cmp-lsp-rimels)
 
-也可参考 issue 里其他用户的配置片段。
+也可参考 issues 里其他用户的配置片段。
