@@ -399,7 +399,7 @@ local function select_or_confirm_rime(index, select_with_no_num)
     cmp.complete({ config = { sources = { { name = 'nvim_lsp' } } } })
     local first_rime_ls_entry = get_n_rime_ls_entries(2)
     if #first_rime_ls_entry ~= 1 then
-        return
+        return true
     end
     confirm_rime_ls_entry(first_rime_ls_entry[1])
     return true;
@@ -585,7 +585,7 @@ end
 
 ## 完整配置
 
-查看 [kaiser-rime-ls](https://github.com/Kaiser-Yang/dotfiles/commit/81d7be6c455fdc97bc88df24cdc2dcca013ee042) 。
+查看 [kaiser-rime-ls](https://github.com/Kaiser-Yang/dotfiles/commit/3f027f0e2ebd7e123c2efae0a1b2d3d843756fa6) 。
 
 # 使用其他用户开发的插件
 
