@@ -337,7 +337,7 @@ end
 -- Confirm the rime-ls entry
 -- We use nvim_set_current_line to get the completion text,
 -- because cmp.comfirm is slow and configured with throttle
--- of which make the completion list not pop up when typing fast
+-- for which make the completion list not pop up when typing fast
 local function confirm_rime_ls_entry(entry)
     local line = vim.api.nvim_get_current_line()
     local cursor_column = vim.api.nvim_win_get_cursor(0)[2]
@@ -445,7 +445,7 @@ local mapped_key = {
 }
 ```
 
-对于空格已经被绑定的情况，先进行如下操作：
+上面的空格和单引号已经被绑定了，这里以空格为例，先进行如下操作：
 
 ```lua
 -- find a key will never be used, here we use <f30>
@@ -455,7 +455,7 @@ map.set({ 'i' }, '<f30>', '<c-]><c-r>=AutoPairsSpace()<cr>', opts())
 map.set({ 'i' }, '<space>', '<c-]><c-r>=AutoPairsSpace()<cr>', opts())
 ```
 
-绑定上屏的功能：
+绑定上屏功能：
 
 ```lua
 map.set({ 'i' }, k, function()
@@ -475,7 +475,7 @@ map.set({ 'i' }, k, function()
 end, opts())
 ```
 
-`auto_upload_rime(1, true)` 意味着会直接 `confirm` 第一个 rime-ls 的候选词，
+`auto_upload_rime(1, true)` 意味着会直接 `confirm` 第一个 rime-ls 候选词，
 这表示你不能再进行后续后续选择。如果你喜欢输入句子，而不是单个词，你可以将 `true` 改为 `false`。
 
 我个人建议非语句流形码用户全部使用 `auto_upload_rime(x, true)`；
