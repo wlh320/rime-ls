@@ -37,7 +37,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 2. 将编译好的二进制文件放在喜欢的目录下
 3. 配置 LSP 客戶端, 例如:
    - [Neovim + nvim-cmp](doc/nvim-with-cmp.md)
-   - [Neovim + blink.nvim](doc/nvim-with-blink.md)
+   - [Neovim + blink.cmp](doc/nvim-with-blink.md)
    - [Vim + coc.nvim](doc/vim.md)
    - [Vscode](doc/vscode.md)
    - [Helix](doc/helix.md)
@@ -171,9 +171,9 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ## 个人词库同步
 
-> **Warning** > **不推荐**与系统中的已有 rime 输入法共用一个用户目录, 免得出什么问题
->
-> 使用前备份自己的数据, 避免因作者对 rime API 理解不到位可能造成的数据损失
+> [!WARNING]
+> **不推荐**与系统中的已有 rime 输入法共用一个用户目录，避免数据库上锁无法使用。
+> 使用前备份自己的数据, 避免因作者对 rime API 理解不到位可能造成的数据损失。
 
 可以通过 rime 的 sync 功能将系统中已安装的 rime 输入法的词库同步过来。
 
@@ -229,7 +229,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ## Credits
 
-受到以下項目啓發
+受到以下项目启发
 
 - [ds-pinyin-lsp](https://github.com/iamcco/ds-pinyin-lsp)
 - [cmp-rime](https://github.com/Ninlives/cmp-rime)
