@@ -279,6 +279,10 @@ end, opts())
 ```lua
 local cmp = require'cmp'
 
+-- NOTE: there is no 'z' in the alphabet
+-- The alphabet your schema used
+local alphabet = "abcdefghijklmnopqrstuvwxy"
+
 -- Feed keys with term code
 -- keys: the keys to feed
 -- mode: n for no-remap, m for re-map
@@ -298,7 +302,7 @@ local function contain_chinese_character(content)
     return false
 end
 
--- Return true if the entry of cmp is acceptable
+-- Return true if the cmp-entry is acceptable
 -- you can define some other rules here to accept more
 -- in this situation we only think the entry
 -- whose content contains Chinese or is like time is acceptable
@@ -311,6 +315,9 @@ end
 -- Return the first n entries which make rime_entry_acceptable(entry) return true
 -- we call those entries rime-ls entries below
 local function get_n_rime_ls_entries(n)
+    if not cmp.visible() then
+        return {}
+    end
     local entries = cmp.get_entries()
     local result = {}
     if entries == nil or #entries == 0 then
@@ -328,17 +335,52 @@ local function get_n_rime_ls_entries(n)
 end
 
 -- Confirm the rime-ls entry
+-- We use nvim_set_current_line to get the completion text,
+-- because cmp.comfirm is slow and configured with throttle
+-- for which make the completion list not pop up when typing fast
 local function confirm_rime_ls_entry(entry)
-    cmp.core:confirm(entry, { behavior = cmp.ConfirmBehavior.Insert }, function()
-        cmp.core:complete(cmp.core:get_context({ reason = cmp.ContextReason.TriggerOnly }))
-    end)
+    local line = vim.api.nvim_get_current_line()
+    local cursor_column = vim.api.nvim_win_get_cursor(0)[2]
+    local start = entry.source_insert_range.start.character
+    local new_line =
+        string.sub(line, 1, start) ..
+        entry.word ..
+        string.sub(line, cursor_column + 1)
+    vim.api.nvim_set_current_line(new_line)
+    vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], start + #entry.word })
+end
+
+-- check if the content of txt is all in allowed
+local function match_alphabet(txt, allowed)
+    return string.match(txt, '^[' .. allowed .. ']+$') ~= nil
+end
+
+-- check if the last character will trigger rime-ls
+local function last_character_in_alphabet()
+    local cursor_column = vim.api.nvim_win_get_cursor(0)[2]
+    if cursor_column == 0 then
+        return false;
+    end
+    local trigger_alphabet = alphabet
+    -- INFO:
+    -- If you bind number with select_or_confirm_rime(x, false)
+    -- uncomment this line to select more than once
+    -- trigger_alphabet = trigger_alphabet .. "1234567890"
+
+    return match_alphabet(string.sub(vim.api.nvim_get_current_line(),
+            cursor_column,
+            cursor_column),
+        trigger_alphabet)
 end
 
 -- index: the index-th rime-ls entry
 -- select_with_no_num: set true to upload the index-th rime-ls entry directly
 --                     set false to feed index as number at first, then upload if only one rime-ls entry
 -- return true if the number of rime-ls entries is enough
-local function auto_upload_rime(index, select_with_no_num)
+local function select_or_confirm_rime(index, select_with_no_num)
+    if not last_character_in_alphabet() then
+        return false
+    end
     local rime_ls_entries = get_n_rime_ls_entries(index)
     if #rime_ls_entries < index then
         return false
@@ -347,43 +389,63 @@ local function auto_upload_rime(index, select_with_no_num)
         confirm_rime_ls_entry(rime_ls_entries[index])
         return true
     end
-    feedkeys(tostring(index), 'n')
-    vim.schedule(function()
-        -- auto upload when only one rime_ls entry
-        -- this is lag, because we must wait for the next completion list pop up
-        local first_rime_ls_entry = get_n_rime_ls_entries(2)
-        if #first_rime_ls_entry ~= 1 then
-            return
-        end
-        confirm_rime_ls_entry(first_rime_ls_entry[1])
-    end)
+    local cursor_column = vim.api.nvim_win_get_cursor(0)[2]
+    local line = vim.api.nvim_get_current_line()
+    local new_line = string.sub(line, 1, cursor_column) .. tostring(index) .. string.sub(line, cursor_column + 1)
+    vim.api.nvim_set_current_line(new_line)
+    vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], cursor_column + 1 })
+    -- must trigger complete manually here,
+    -- otherwise we can not get the new list after inputting a number
+    cmp.complete({ config = { sources = { { name = 'nvim_lsp' } } } })
+    local first_rime_ls_entry = get_n_rime_ls_entries(2)
+    if #first_rime_ls_entry ~= 1 then
+        return true
+    end
+    confirm_rime_ls_entry(first_rime_ls_entry[1])
     return true;
 end
 
--- Feed a key with schedule
--- When k and v are not equal, feed v with remap mode,
--- otherwise feed k with no-remap mode
--- This function is used to make sure the completion not stop even if typing fast
--- and this function is also used when the original key is mapped to other functionality
-local function feed_key(k, v)
-    -- use schedule to make sure next input will trigger the completion list
-    vim.schedule(function()
-        if k == v then
-            feedkeys(k, 'n')
-        else
-            feedkeys(v, 'm')
-        end
-    end)
+-- When k and v are not equal and v is not nil, feed v with remap mode,
+-- otherwise feed k with no-remap mode.
+-- This function is used when the original key is mapped to other functionality
+local function feed_key_helper(k, v)
+    if v == nil or k == v then
+        feedkeys(k, 'n')
+    else
+        feedkeys(v, 'm')
+    end
 end
 ```
 
 **注意**：后文使用的按键可能被某些插件绑定了一些其他的功能
 （例如 `auto-pairs` 绑定 `<space>` 来在括号中插入两个空格），或者你自己绑定了一些功能，
-如果你想同时保留两部分功能，你可以参考 <a href="#use-space-to-upload">空格上屏</a> 部分的配置。
+如果你想同时保留两部分功能，你可以参考 <a href="#upload-word">选词功能</a> 部分的配置。
 
-## <a id="use-space-to-upload">空格上屏</a>
+## <a id="upload-word"选词功能</a>
 
-对于空格已经被绑定的情况，先进行如下操作：
+相关 issue ：[用数字选词以后还需要一次空格才能上屏幕](https://github.com/wlh320/rime-ls/issues/20)。
+
+这里以先定义候选按键，以空格首选，分号次选，单引号三选，数字键依次对应候选 1-9 为例，
+先定义按键列表：
+
+```lua
+local mapped_key = {
+    ['<space>'] = '<f30>',
+    [';'] = ';',
+    ["'"] = '<f31>',
+    ['1'] = '1',
+    ['2'] = '2',
+    ['3'] = '3',
+    ['4'] = '4',
+    ['5'] = '5',
+    ['6'] = '6',
+    ['7'] = '7',
+    ['8'] = '8',
+    ['9'] = '9',
+}
+```
+
+上面的空格和单引号已经被绑定了，这里以空格为例，先进行如下操作：
 
 ```lua
 -- find a key will never be used, here we use <f30>
@@ -393,91 +455,32 @@ map.set({ 'i' }, '<f30>', '<c-]><c-r>=AutoPairsSpace()<cr>', opts())
 map.set({ 'i' }, '<space>', '<c-]><c-r>=AutoPairsSpace()<cr>', opts())
 ```
 
-接下来绑定空格上屏的功能：
+绑定上屏功能：
 
 ```lua
-map.set({ 'i' }, '<space>', function()
+map.set({ 'i' }, k, function()
     -- when having selected an entry we do not upload
     -- if you want to upload, comment those lines
-    local entry = cmp.get_selected_entry()
-    if entry ~= nil then
-        -- if your <space> key is not bind to other functionality
-        -- use feed_key('<space>', '<space>')
-        feed_key('<space>', '<f30>')
+    if cmp.visible() and cmp.get_selected_entry() ~= nil then
+        feed_key_helper(k, v)
         return
     end
-
-    if not auto_upload_rime(1, true) then
-        -- if your <space> key is not bind to other functionality
-        -- use feed_key('<space>', '<space>')
-        feed_key('<space>', '<f30>')
+    -- NOTE: if you want to use a key to select more than once change true to false
+    if k == '<space>' and not select_or_confirm_rime(1, true) or
+        k == ';' and not select_or_confirm_rime(2, true) or
+        k == "'" and not select_or_confirm_rime(3, true) or
+        k:match('[0-9]') and not select_or_confirm_rime(tonumber(k), true) then
+        feed_key_helper(k, v);
     end
 end, opts())
 ```
 
-`auto_upload_rime(1, true)` 意味着会直接 `confirm` 第一个 rime-ls 的候选词，
+`auto_upload_rime(1, true)` 意味着会直接 `confirm` 第一个 rime-ls 候选词，
 这表示你不能再进行后续后续选择。如果你喜欢输入句子，而不是单个词，你可以将 `true` 改为 `false`。
-不过这样会导致快速输入时，输入法无法及时切换到下一个候选词。这是由 rime-ls 的设计决定的。
 
-我个人建议在绑定空格和二三候选时使用 `auto_upload_rime(x, true)`，
-在绑定数字按键时使用 `auto_upload_rime(x, false)`。
-
-## 二三候选
-
-以 `;` 和 `'` 为例：
-
-```lua
-map.set({ 'i' }, ';', function()
-    -- when having selected an entry we do not upload
-    -- if you want to upload, comment those lines
-    local entry = cmp.get_selected_entry()
-    if entry ~= nil then
-        feed_key(';', ';')
-        return
-    end
-
-    if not auto_upload_rime(2, true) then
-        feed_key(';', ';')
-    end
-end, opts())
-
-map.set({ 'i' }, "'", function()
-    -- when having selected an entry we do not upload
-    -- if you want to upload, comment those lines
-    local entry = cmp.get_selected_entry()
-    if entry ~= nil then
-        feed_key("'", "'")
-        return
-    end
-
-    if not auto_upload_rime(3, true) then
-        feed_key("'", "'")
-    end
-end, opts())
-```
-
-## 数字键选择
-
-相关 issue ：[用数字选词以后还需要一次空格才能上屏幕](https://github.com/wlh320/rime-ls/issues/20)。
-
-```lua
-for numkey = 1, 9 do
-    local numkey_str = tostring(numkey)
-    map.set({ 'i' }, numkey_str, function()
-        -- when having selected an entry we do not upload
-        -- if you want to upload, comment those lines
-        local entry = cmp.get_selected_entry()
-        if entry ~= nil then
-            feed_key(k, v)
-            return
-        end
-
-        if not auto_upload_rime(numkey, false) then
-            feed_key(numkey_str, numkey_str)
-        end
-    end, opts())
-end
-```
+我个人建议非语句流形码用户全部使用 `auto_upload_rime(x, true)`；
+其他用户空格和二三候选使用 `auto_upload_rime(x, true)`，
+数字按键使用 `auto_upload_rime(x, false)`。
 
 ## 中文标点
 
@@ -485,7 +488,7 @@ end
 
 如果使用 `rime-ls` 进行标点输入，因为 lsp 的特性必须伴随一次选择才能触发上屏，
 所以在输入标点时会有一些不同的体验。这里提供一种解决方案，即在输入标点时，先输入标点，
-然后再输入空格来实现插入中文标点, 首先设置 rime-ls 为西方标点模式，然后增加如下配置：
+然后再输入空格来实现插入中文标点, 首先设置 rime-ls 为西文标点模式，然后增加如下配置：
 
 ```lua
 local mapped_punc = {
@@ -498,16 +501,17 @@ local mapped_punc = {
     -- ...
     -- add more you want here
 }
+-- Chinese punctuations
 for k, v in pairs(mapped_punc) do
     map.set({ 'i' }, k .. '<space>', function()
         -- when typing comma or period with space,
         -- upload the first rime_ls entry and make comma and period in Chinese edition
         -- if you don't want this just comment those lines
         if k == ',' or k == '.' then
-            auto_upload_rime(1, true)
+            select_or_confirm_rime(1, true)
         end
 
-        feed_key(v, v)
+        feed_key_helper(v, v)
     end, opts())
 end
 ```
@@ -516,20 +520,7 @@ end
 
 相关 issue ：[feat: add rime-ls.get-first-candidate command](https://github.com/wlh320/rime-ls/pull/41)。
 
-该情况指用户在输入过快时，补全列表会消失，导致内容与预期不一致。
-这里主要通过 `vim.schedule` 保证输入按键在补全发生后触发，这样快速输入会卡顿，
-但能保证内容与预期一致。
-
-```lua
--- the alphabet your schema used，usually is "abcdefghijklmnopqrstuvwxyz"
-local alphabet = "abcdefghijklmnopqrstuvwxyz"
-for i = 1, #alphabet do
-    local k = alphabet:sub(i, i)
-    map.set({ 'i' }, k, function()
-        feed_key(k, k)
-    end, opts())
-end
-```
+使用以上配置后，该问题已经解决。
 
 ## 五笔或者双形用户
 
@@ -548,57 +539,53 @@ require('lspconfig').rime_ls.setup {
 }
 ```
 
-### 顶字上屏 + 快速输入不中断
+### 顶字上屏
 
 相关 issue ：[如何实现顶字上屏](https://github.com/wlh320/rime-ls/issues/43)。
 
 ```lua
--- the alphabet your schema used，usually is "abcdefghijklmnopqrstuvwxyz"
-local alphabet = "abcdefghijklmnopqrstuvwxyz"
 -- the max_code of your schema, wubi and flypy are 4
 local max_code = 4
--- Return if the number of characters for completion reaches max_code
-local function reach_max_code()
-    local first_rime_ls_entry = get_n_rime_ls_entries(1)
-    if #first_rime_ls_entry ~= 1 then
-        return false
+
+local function auto_upload_on_max_code(k)
+    local cursor_column = vim.api.nvim_win_get_cursor(0)[2]
+    if cursor_column >= max_code then
+        local content_before_cursor = string.sub(vim.api.nvim_get_current_line(), 1, cursor_column)
+        local code = string.sub(content_before_cursor, cursor_column - max_code + 1, cursor_column)
+        if match_alphabet(code, alphabet) then
+            -- This is for wubi users using 'z' as reverse look up
+            -- If 'z' is you alphabet key, just comment this condition check
+            if not string.match(content_before_cursor, 'z[' .. alphabet .. ']*$') then
+                local first_rime_ls_entry = get_n_rime_ls_entries(1)
+                if #first_rime_ls_entry ~= 1 then
+                    -- clear the wrong code
+                    -- uncomment this if you don't want to clear the wrong code
+                    vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], cursor_column - max_code })
+                    vim.api.nvim_set_current_line(string.sub(content_before_cursor, 1, cursor_column - max_code) ..
+                        string.sub(content_before_cursor, cursor_column + 1))
+                else
+                    confirm_rime_ls_entry(first_rime_ls_entry[1])
+                    -- update the new cursor column
+                    cursor_column = vim.api.nvim_win_get_cursor(0)[2]
+                end
+            end
+        end
     end
     local line = vim.api.nvim_get_current_line()
-    local completion_start = first_rime_ls_entry[1].insert_range.start.character
-    local completion_end = vim.api.nvim_win_get_cursor(0)[2]
-    if completion_end - completion_start ~= max_code then
-        return false
-    end
-    local code = string.sub(line, completion_start + 1, completion_end)
-    -- translate some special characters in alphabet
-    local allowed = string.gsub(alphabet, "([%.%*%+%?%-%^%$%(%)%[%]%-{%}|\\])", "%%%1")
-
-    -- NOTE: This is for wubi users: remove the z letter
-    -- flypy users should comment this line
-    allowed = allowed.gsub(allowed, "z", "")
-    
-    if string.match(code, '^[' .. allowed .. ']+$') ~= nil then
-        return true
-    end
-    return false
+    local new_line = string.sub(line, 1, cursor_column) .. k .. string.sub(line, cursor_column + 1)
+    vim.api.nvim_set_current_line(new_line)
+    vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], cursor_column + 1 })
 end
--- select first entry when typing more than max_code
--- note that this part is also used to make completion list visible when typing fast
--- if you don't want select the first entry when typing more than max_code, set max_code to -1
+
 for i = 1, #alphabet do
     local k = alphabet:sub(i, i)
-    map.set({ 'i' }, k, function()
-        if reach_max_code() then
-            auto_upload_rime(1, true)
-        end
-        feed_key(k, k)
-    end, opts())
+    map.set({ 'i' }, k, function() auto_upload_on_max_code(k) end, opts())
 end
 ```
 
 ## 完整配置
 
-查看 [kaiser-rime-ls](https://github.com/Kaiser-Yang/dotfiles/blob/main/.config/nvim/lua/key_mapping.lua#L656-L836) 。
+查看 [kaiser-rime-ls](https://github.com/Kaiser-Yang/dotfiles/commit/3f027f0e2ebd7e123c2efae0a1b2d3d843756fa6) 。
 
 # 使用其他用户开发的插件
 
