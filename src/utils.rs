@@ -1,30 +1,71 @@
 use ropey::Rope;
 use std::path::{Path, PathBuf};
-use tower_lsp::lsp_types::Position;
+use tower_lsp::lsp_types::{Position, PositionEncodingKind};
 
 use crate::consts::AUTO_TRIGGER_RE;
 
-/// UTF-16 Position -> UTF-8 offset
-pub fn position_to_offset(rope: &Rope, position: Position) -> Option<usize> {
+#[derive(Clone, Copy)]
+pub enum Encoding {
+    UTF8,
+    UTF16,
+    UTF32,
+}
+
+impl Encoding {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Encoding::UTF8 => "utf-8",
+            Encoding::UTF16 => "utf-16",
+            Encoding::UTF32 => "utf-32",
+        }
+    }
+}
+
+impl Default for Encoding {
+    fn default() -> Self {
+        Encoding::UTF16
+    }
+}
+
+pub fn select_encoding(options: Option<Vec<PositionEncodingKind>>) -> Encoding {
+    match options {
+        // prefer utf-32 because of no conversion cost
+        Some(v) if v.contains(&PositionEncodingKind::new("utf-32")) => Encoding::UTF32,
+        Some(v) if v.contains(&PositionEncodingKind::new("utf-8")) => Encoding::UTF8,
+        _ => Encoding::default(),
+    }
+}
+
+/// UTF-16 Position -> char index
+pub fn position_to_offset(rope: &Rope, position: Position, encoding: Encoding) -> Option<usize> {
     let (line, col) = (position.line as usize, position.character as usize);
     // position is at the end of rope
     if line == rope.len_lines() && col == 0 {
         return Some(rope.len_chars());
     }
     (line < rope.len_lines()).then_some(line).and_then(|line| {
-        let col8 = rope.line(line).try_utf16_cu_to_char(col).ok()?;
-        let offset = rope.try_line_to_char(line).ok()? + col8;
+        let col_offset = match encoding {
+            Encoding::UTF8 => rope.line(line).try_byte_to_char(col).ok()?,
+            Encoding::UTF16 => rope.line(line).try_utf16_cu_to_char(col).ok()?,
+            Encoding::UTF32 => col,
+        };
+        //let col8 = rope.line(line).try_utf16_cu_to_char(col).ok()?;
+        let offset = rope.try_line_to_char(line).ok()? + col_offset;
         Some(offset)
     })
 }
 
-/// UTF-8 offset -> UTF-16 Position
-pub fn offset_to_position(rope: &Rope, offset: usize) -> Option<Position> {
+/// char index -> UTF-16 Position
+pub fn offset_to_position(rope: &Rope, offset: usize, encoding: Encoding) -> Option<Position> {
     let line = rope.try_char_to_line(offset).ok()?;
-    let col8 = offset - rope.try_line_to_char(line).ok()?;
+    let col_offset = offset - rope.try_line_to_char(line).ok()?;
     (line < rope.len_lines()).then_some(line).and_then(|line| {
-        let col16 = rope.line(line).try_char_to_utf16_cu(col8).ok()?;
-        Some(Position::new(line as u32, col16 as u32))
+        let col = match encoding {
+            Encoding::UTF8 => rope.line(line).try_char_to_byte(col_offset).ok()?,
+            Encoding::UTF16 => rope.line(line).try_char_to_utf16_cu(col_offset).ok()?,
+            Encoding::UTF32 => col_offset,
+        };
+        Some(Position::new(line as u32, col as u32))
     })
 }
 
