@@ -12,7 +12,7 @@ use crate::config::{apply_setting, Config, Settings};
 use crate::consts::{trigger_ptn, NT_RE};
 use crate::input::{Input, InputResult, InputState};
 use crate::rime::{Candidate, Rime, RimeError, RimeResponse};
-use crate::utils;
+use crate::utils::{self, Encoding};
 
 pub struct Backend {
     client: Client,
@@ -20,6 +20,7 @@ pub struct Backend {
     state: DashMap<String, Option<InputState>>,
     config: RwLock<Config>,
     regex: RwLock<Regex>,
+    encoding: RwLock<Encoding>,
 }
 
 impl Backend {
@@ -30,6 +31,7 @@ impl Backend {
             state: DashMap::new(),
             config: RwLock::new(Config::default()),
             regex: RwLock::new(NT_RE.clone()),
+            encoding: RwLock::new(Encoding::default()),
         }
     }
 
@@ -139,11 +141,12 @@ impl Backend {
     async fn get_completions(&self, uri: Url, position: Position) -> Option<CompletionList> {
         // get new input
         let rope = self.documents.get(uri.as_str())?;
+        let encoding = *self.encoding.read().await;
         let line_begin = {
             let line_pos = Position::new(position.line, 0);
-            utils::position_to_offset(&rope, line_pos)?
+            utils::position_to_offset(&rope, line_pos, encoding)?
         };
-        let curr_char = utils::position_to_offset(&rope, position)?;
+        let curr_char = utils::position_to_offset(&rope, position, encoding)?;
         let new_input = {
             let re = self.regex.read().await;
             let has_trigger = !self.config.read().await.trigger_characters.is_empty();
@@ -181,7 +184,8 @@ impl Backend {
                 .and_then(utils::option_string)
                 .and_then(|rime_raw_input| new_input.borrow_pinyin().rfind(&rime_raw_input))
                 .unwrap_or(0);
-        let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
+        let start_position = utils::offset_to_position(&rope, real_offset, encoding)?;
+        let range = Range::new(start_position, position);
         let filter_prefix = (self.config.read().await.long_filter_text).then_some(
             utils::surrounding_word(&Cow::from(rope.slice(line_begin..real_offset))),
         );
@@ -297,6 +301,14 @@ impl LanguageServer for Backend {
             triggers.extend_from_slice(user_triggers);
             triggers
         };
+
+        let encoding_options = params
+            .capabilities
+            .general
+            .and_then(|g| g.position_encodings);
+        let encoding = utils::select_encoding(encoding_options);
+        *self.encoding.write().await = encoding;
+
         // return
         Ok(InitializeResult {
             server_info: Some(ServerInfo {
@@ -304,6 +316,7 @@ impl LanguageServer for Backend {
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
             capabilities: ServerCapabilities {
+                position_encoding: Some(PositionEncodingKind::new(encoding.as_str())),
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(
                     TextDocumentSyncKind::INCREMENTAL,
                 )),
@@ -344,6 +357,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
+        let encoding = *self.encoding.read().await;
         let url = params.text_document.uri;
         if let Some(mut rope) = self.documents.get_mut(url.as_str()) {
             for change in params.content_changes {
@@ -351,8 +365,8 @@ impl LanguageServer for Backend {
                 match range {
                     // incremental change
                     Some(Range { start, end }) => {
-                        let s = utils::position_to_offset(&rope, start);
-                        let e = utils::position_to_offset(&rope, end);
+                        let s = utils::position_to_offset(&rope, start, encoding);
+                        let e = utils::position_to_offset(&rope, end, encoding);
                         if let (Some(s), Some(e)) = (s, e) {
                             rope.remove(s..e);
                             rope.insert(s, &text);
