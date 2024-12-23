@@ -141,7 +141,7 @@ impl Backend {
     async fn get_completions(&self, uri: Url, position: Position) -> Option<CompletionList> {
         // get new input
         let rope = self.documents.get(uri.as_str())?;
-        let encoding = self.encoding.read().await.clone();
+        let encoding = *self.encoding.read().await;
         let line_begin = {
             let line_pos = Position::new(position.line, 0);
             utils::position_to_offset(&rope, line_pos, encoding)?
@@ -184,7 +184,8 @@ impl Backend {
                 .and_then(utils::option_string)
                 .and_then(|rime_raw_input| new_input.borrow_pinyin().rfind(&rime_raw_input))
                 .unwrap_or(0);
-        let range = Range::new(utils::offset_to_position(&rope, real_offset)?, position);
+        let start_position = utils::offset_to_position(&rope, real_offset, encoding)?;
+        let range = Range::new(start_position, position);
         let filter_prefix = (self.config.read().await.long_filter_text).then_some(
             utils::surrounding_word(&Cow::from(rope.slice(line_begin..real_offset))),
         );
@@ -356,7 +357,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
-        let encoding = self.encoding.read().await.clone();
+        let encoding = *self.encoding.read().await;
         let url = params.text_document.uri;
         if let Some(mut rope) = self.documents.get_mut(url.as_str()) {
             for change in params.content_changes {

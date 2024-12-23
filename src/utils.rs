@@ -4,9 +4,10 @@ use tower_lsp::lsp_types::{Position, PositionEncodingKind};
 
 use crate::consts::AUTO_TRIGGER_RE;
 
-#[derive(Clone, Copy)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum Encoding {
     UTF8,
+    #[default]
     UTF16,
     UTF32,
 }
@@ -21,22 +22,16 @@ impl Encoding {
     }
 }
 
-impl Default for Encoding {
-    fn default() -> Self {
-        Encoding::UTF16
-    }
-}
-
 pub fn select_encoding(options: Option<Vec<PositionEncodingKind>>) -> Encoding {
     match options {
-        // prefer utf-32 because of no conversion cost
+        // we prefer utf-32 here because there are no conversion costs
         Some(v) if v.contains(&PositionEncodingKind::new("utf-32")) => Encoding::UTF32,
         Some(v) if v.contains(&PositionEncodingKind::new("utf-8")) => Encoding::UTF8,
         _ => Encoding::default(),
     }
 }
 
-/// UTF-16 Position -> char index
+/// UTF-8/16/32 Position -> char index
 pub fn position_to_offset(rope: &Rope, position: Position, encoding: Encoding) -> Option<usize> {
     let (line, col) = (position.line as usize, position.character as usize);
     // position is at the end of rope
@@ -55,7 +50,7 @@ pub fn position_to_offset(rope: &Rope, position: Position, encoding: Encoding) -
     })
 }
 
-/// char index -> UTF-16 Position
+/// char index -> UTF-8/16/32 Position
 pub fn offset_to_position(rope: &Rope, offset: usize, encoding: Encoding) -> Option<Position> {
     let line = rope.try_char_to_line(offset).ok()?;
     let col_offset = offset - rope.try_line_to_char(line).ok()?;
