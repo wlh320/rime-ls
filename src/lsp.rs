@@ -186,9 +186,10 @@ impl Backend {
                 .unwrap_or(0);
         let start_position = utils::offset_to_position(&rope, real_offset, encoding)?;
         let range = Range::new(start_position, position);
-        let filter_prefix = (self.config.read().await.long_filter_text).then_some(
-            utils::surrounding_word(&Cow::from(rope.slice(line_begin..real_offset))),
-        );
+        let filter_prefix = (self.config.read().await.long_filter_text).then_some({
+            let slice = &Cow::from(rope.slice(line_begin..real_offset));
+            utils::surrounding_word(slice).to_string()
+        });
         // TODO: Does compiler know the right time to drop the lock,
         // or it will wait until the end of this function?
         drop(rope);
@@ -241,7 +242,9 @@ impl Backend {
                 _ => text.clone(),
             };
             if show_filter_text_in_label {
-                label += &format!(" ({})", filter_text);
+                label.push_str(" (");
+                label.push_str(&filter_text);
+                label.push(')');
             }
             let label_details = (!c.comment.is_empty()).then_some(CompletionItemLabelDetails {
                 detail: Some(c.comment.clone()),
@@ -301,7 +304,7 @@ impl LanguageServer for Backend {
             triggers.extend_from_slice(user_triggers);
             triggers
         };
-
+        // negotiate position encoding
         let encoding_options = params
             .capabilities
             .general
@@ -420,8 +423,11 @@ impl LanguageServer for Backend {
                 self.notify_work_begin(token.clone(), command).await;
                 let mut config = self.config.write().await;
                 config.enabled = !config.enabled;
-                let status = format!("Rime is {}", if config.enabled { "ON" } else { "OFF" });
-                self.notify_work_done(token.clone(), &status).await;
+                let status = match config.enabled {
+                    true => "Rime is ON",
+                    false => "Rime is OFF",
+                };
+                self.notify_work_done(token.clone(), status).await;
                 // return a bool representing if rime-ls is enabled
                 return Ok(Some(Value::from(config.enabled)));
             }

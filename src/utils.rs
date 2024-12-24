@@ -44,7 +44,6 @@ pub fn position_to_offset(rope: &Rope, position: Position, encoding: Encoding) -
             Encoding::UTF16 => rope.line(line).try_utf16_cu_to_char(col).ok()?,
             Encoding::UTF32 => col,
         };
-        //let col8 = rope.line(line).try_utf16_cu_to_char(col).ok()?;
         let offset = rope.try_line_to_char(line).ok()? + col_offset;
         Some(offset)
     })
@@ -135,9 +134,11 @@ fn char_is_word(ch: char) -> bool {
     ch.is_alphanumeric() || ch == '_'
 }
 
-pub fn surrounding_word(s: &str) -> String {
+#[inline]
+pub fn surrounding_word(s: &str) -> &str {
     let end = s.len();
     let mut start = end;
+
     for ch in s.chars().rev() {
         if char_is_word(ch) {
             start -= ch.len_utf8();
@@ -145,16 +146,16 @@ pub fn surrounding_word(s: &str) -> String {
             break;
         }
     }
-    s[start..end].to_string()
+    &s[start..end]
 }
 
 #[test]
 fn test_surrounding_word() {
-    assert_eq!(surrounding_word(""), "".to_string());
-    assert_eq!(surrounding_word(" "), "".to_string());
-    assert_eq!(surrounding_word("hello_world"), "hello_world".to_string());
-    assert_eq!(surrounding_word("hello world"), "world".to_string());
-    assert_eq!(surrounding_word("汉字nihao"), "汉字nihao".to_string());
-    assert_eq!(surrounding_word("汉，字nihao"), "字nihao".to_string());
-    assert_eq!(surrounding_word("汉。字nihao"), "字nihao".to_string());
+    assert_eq!(surrounding_word(""), "");
+    assert_eq!(surrounding_word(" "), "");
+    assert_eq!(surrounding_word("hello_world"), "hello_world");
+    assert_eq!(surrounding_word("hello world"), "world");
+    assert_eq!(surrounding_word("汉字nihao"), "汉字nihao");
+    assert_eq!(surrounding_word("汉，字nihao"), "字nihao");
+    assert_eq!(surrounding_word("汉。字nihao"), "字nihao");
 }
