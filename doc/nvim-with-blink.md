@@ -53,6 +53,14 @@
 先定义几个功能函数：
 
 ```lua
+-- Check if item is acceptable, you can define rules by yourself
+function rime_item_acceptable(item)
+    return
+        not contains_unacceptable_character(item.label)
+        or
+        item.label:match("%d%d%d%d%-%d%d%-%d%d %d%d:%d%d:%d%d%")
+end
+
 -- Get the first n rime items' index in the completion list
 function get_n_rime_item_index(n, items)
     if items == nil then
