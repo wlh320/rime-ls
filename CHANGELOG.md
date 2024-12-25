@@ -1,3 +1,19 @@
+# v0.4.1
+
+## Feat
+
+- 支持 UTF-8 和 UTF-32 编码，按 LSP 3.17 标准在初始化时与客户端协商 (it also fixes #38)
+
+## Doc
+
+- 增加 nvim + blink.cmp 的配置示例 (Thanks to Kaiser-Yang #46)
+- 增加 nvim 下的多种功能的配置示例 (Thanks to Kaiser-Yang #44 #45 #46)
+
+## Chore
+
+- 更新依赖版本
+- 增加 Mac 和 Win 环境下的 CI (Thanks to asukaminato0721 #39 #40)
+
 # v0.4.0
 
 ## Fix
