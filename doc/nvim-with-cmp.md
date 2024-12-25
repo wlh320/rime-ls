@@ -1,175 +1,48 @@
 # neovim + nvim-cmp 配置示例
 
-作者目前没有实现官方 neovim 插件，建议根据实际使用情况自行配置。
+作者目前没有实现官方 neovim 插件，可以使用其他用户开发的插件，或者根据下面的代码片段自行配置。
 
 以 neovim + nvim-cmp 为例，下面给出一些可行的配置方法 (需填入正确的程序路径和 rime 需要的目录)。
 
-- [neovim + nvim-cmp 配置示例](#neovim--nvim-cmp-配置示例)
+- [使用其他用户开发的插件](#使用其他用户开发的插件)
 - [初始化 rime-ls](#初始化-rime-ls)
-  - [为每个 buffer 开启一个 lsp server (不推荐)](#为每个-buffer-开启一个-lsp-server-不推荐)
-  - [基于 lspconfig 的全局 LSP 状态](#基于-lspconfig-的全局-lsp-状态)
+- [通过 TCP 远程使用](#通过-tcp-远程使用)
 - [按需调整 cmp 的排序](#按需调整-cmp-的排序)
 - [状态栏显示](#状态栏显示)
 - [特定 buffer 无法使用问题](#特定-buffer-无法使用问题)
-- [通过 TCP 远程使用](#通过-tcp-远程使用)
 - [还原输入法体验](#还原输入法体验)
   - [选词功能](#选词功能)
   - [中文标点](#中文标点)
   - [输入过快补全列表消失](#输入过快补全列表消失)
   - [五笔或者双形用户](#五笔或者双形用户)
     - [顶字上屏](#顶字上屏)
-  - [完整配置](#完整配置)
-- [使用其他用户开发的插件](#使用其他用户开发的插件)
+
+# 使用其他用户开发的插件
+
+目前没有官方实现的 neovim 插件，但已有用户将相关功能封装成了插件，例如：
+
+- [liubianshi/cmp-lsp-rimels](https://github.com/liubianshi/cmp-lsp-rimels)
+
+也可参考 issues 里其他用户和下面的配置片段。
 
 # 初始化 rime-ls
 
-## 为每个 buffer 开启一个 lsp server (不推荐)
+基于 lspconfig 全局开启 rime-ls：
 
-```lua
-local start_rime = function()
-  local client_id = vim.lsp.start_client({
-    name = "rime-ls",
-    cmd = { '/home/wlh/coding/rime-ls/target/release/rime_ls' },
-    init_options = {
-      enabled = false, -- 初始关闭, 手动开启
-      shared_data_dir = "/usr/share/rime-data", -- rime 公共目录
-      user_data_dir = "~/.local/share/rime-ls", -- 指定用户目录, 最好新建一个
-      log_dir = "~/.local/share/rime-ls", -- 日志目录
-      max_candidates = 10, -- [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
-      paging_characters = {",", ".", "-", "="}, -- [since v0.2.4] 这些字符会强制触发一次补全，可用于翻页 见 issue #13
-      trigger_characters = {}, -- 为空表示全局开启
-      schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
-      always_incomplete = false -- [since v0.2.3] true 强制补全永远刷新整个列表，而不是使用过滤
-      max_tokens = 0 -- [since v0.2.3] 大于 0 表示会在删除到这个字符个数的时候，重建所有候选词，而不使用删除字符操作
-      preselect_first = false -- [since v0.2.3] 是否默认第一个候选项是选中状态，default false
-    },
-  });
-  vim.lsp.buf_attach_client(0, client_id)
-  if client_id then
-    -- 定义常用命令
-    vim.lsp.buf_attach_client(0, client_id)
-    vim.api.nvim_create_user_command('RimeToggle', function ()
-      -- before v0.1.2
-      -- vim.lsp.buf.execute_command({ command = "toggle-rime" })
-      -- since v0.1.2
-      vim.lsp.buf.execute_command({ command = "rime-ls.toggle-rime" })
-    end, { nargs = 0 })
-    -- since v0.1.2
-    vim.api.nvim_create_user_command('RimeSync', function ()
-      vim.lsp.buf.execute_command({ command = "rime-ls.sync-user-data" })
-    end, { nargs = 0 })
+可以参考[作者的配置](https://github.com/wlh320/wlh-dotfiles/blob/1a26b72172368de2895a3bd21ce94b7b17a9da38/config/nvim/lua/rime.lua#L3)
+给 nvim-lspconfig 添加一个 custom server
 
-    -- 自定义快捷键
-    vim.keymap.set('n', '<leader><space>', '<cmd>RimeToggle<cr>')
-    vim.keymap.set('n', '<leader>rs', '<cmd>RimeSync<cr>')
-    -- ...
-  end
-end
--- 对每个文件都默认开启
-vim.api.nvim_create_autocmd('BufReadPost', {
-  callback = function()
-    start_rime()
-  end,
-  pattern = '*',
-})
-```
+上述代码定义了一个 `setup_rime()` 函数，在配置 lspconfig 的位置手动调用一下，
+即可为全部 buffer 开启该服务，用一个全局变量 `vim.g.rime_enabled` 做开关控制是否真正使用。
 
-以上配置进入文件便开启 LSP, 用快捷键切换是否开启补全
+# 通过 TCP 远程使用
 
-## 基于 lspconfig 的全局 LSP 状态
+在本机开多个 nvim 进程时会随之开启多个 rime-ls 进程，由于 rime 会给数据库加锁导致不能同时使用。
+为了不产生冲突，可以只开一个 rime-ls 进程，不同客户端通过 TCP 远程使用。
 
-如果希望保持一个全局的输入法状态，可以参考以下配置给 lspconfig 添加一个 custom server：
+需要 rime_ls 以 TCP 模式运行: `rime_ls --listen <bind_addr>`
 
-```lua
-local M = {}
-
-function M.setup_rime()
-  -- global status
-  vim.g.rime_enabled = false
-
-  -- update lualine
-  local function rime_status()
-    if vim.g.rime_enabled then
-      return 'ㄓ'
-    else
-      return ''
-    end
-  end
-
-  require('lualine').setup({
-    sections = {
-      lualine_x = { rime_status, 'encoding', 'fileformat', 'filetype' },
-    }
-  })
-
-  -- add rime-ls to lspconfig as a custom server
-  -- see `:h lspconfig-new`
-  local lspconfig = require('lspconfig')
-  local configs = require('lspconfig.configs')
-  if not configs.rime_ls then
-    configs.rime_ls = {
-      default_config = {
-        name = "rime_ls",
-        cmd = { 'rime_ls' },
-        -- cmd = vim.lsp.rpc.connect('127.0.0.1', 9257),
-        filetypes = { '*' },
-        single_file_support = true,
-      },
-      settings = {},
-      docs = {
-        description = [[
-https://www.github.com/wlh320/rime-ls
-
-A language server for librime
-]],
-      }
-    }
-  end
-
-  local rime_on_attach = function(client, _)
-    -- 定义常用命令
-    vim.api.nvim_create_user_command('RimeToggle', function ()
-      client.request('workspace/executeCommand',
-        { command = "rime-ls.toggle-rime" },
-        function(_, result, ctx, _)
-          if ctx.client_id == client.id then
-            vim.g.rime_enabled = result
-          end
-        end
-      )
-    end, { nargs = 0 })
-    vim.api.nvim_create_user_command('RimeSync', function ()
-      vim.lsp.buf.execute_command({ command = "rime-ls.sync-user-data" })
-    end, { nargs = 0 })
-
-    -- 自定义快捷键
-    vim.keymap.set('n', '<leader><space>', '<cmd>ToggleRime<cr>')
-    vim.keymap.set('i', '<C-x>', '<cmd>ToggleRime<cr>')
-    vim.keymap.set('n', '<leader>rs', '<cmd>RimeSync<cr>')
-    -- ...
-  end
-
-  -- nvim-cmp supports additional completion capabilities, so broadcast that to servers
-  local capabilities = vim.lsp.protocol.make_client_capabilities()
-  capabilities = require('cmp_nvim_lsp').default_capabilities(capabilities)
-
-  lspconfig.rime_ls.setup {
-    init_options = {
-      enabled = vim.g.rime_enabled,
-      shared_data_dir = "/usr/share/rime-data",
-      user_data_dir = "~/.local/share/rime-ls",
-      log_dir = "~/.local/share/rime-ls",
-      max_candidates = 9,
-      trigger_characters = {},
-      schema_trigger_character = "&" -- [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
-    },
-    on_attach = rime_on_attach,
-    capabilities = capabilities,
-  }
-end
-
-return M
-```
+客户端在上述初始化代码中将运行命令修改为 `cmd = vim.lsp.rpc.connect('<ip>', <port>)`。
 
 # 按需调整 cmp 的排序
 
@@ -206,6 +79,8 @@ cmp.setup {
 # 状态栏显示
 
 since v0.1.2, 可以参考以下配置在 lualine 显示 rime-ls 的当前状态:
+
+其他插件同理，都依赖于 rime-ls 的 `rime-ls.toggle-rime` 命令的返回结果
 
 ```lua
 -- toggle rime
@@ -267,13 +142,13 @@ vim.api.nvim_create_autocmd('FileType', {
 即使有了上面的配置，在 No Name 文件中依然不能自动启动，对于这种情况，需要先保存 No Name 文件，
 然后再重新打开。
 
-# 通过 TCP 远程使用
-
-将运行命令修改为 `cmd = vim.lsp.rpc.connect('<ip>', <port>)`。
-
 # 还原输入法体验
 
-这部分配置来自 [使用 nvim-cmp + rime-ls 配置 nvim 中文输入法](https://kaiser-yang.github.io/blog/2024/nvim-input-method/)。
+你可以把 rime-ls 当成单纯的代码补全来用，也可以进行额外的配置让它更像普通的输入法。
+
+这部分配置来自 Kaiser-Yang 的博客文章 [使用 nvim-cmp + rime-ls 配置 nvim 中文输入法](https://kaiser-yang.github.io/blog/2024/nvim-input-method/)。
+
+完整配置可以参考 [Kaiser-Yang 的 dotfiles](https://github.com/Kaiser-Yang/dotfiles/commit/3f027f0e2ebd7e123c2efae0a1b2d3d843756fa6) 
 
 为了不影响其他不需要中文输入地方的体验，这一部分的实现逻辑是在启动 rime-ls 时增加 key-mapping ，
 关闭时删除 key-mapping 实现。因此配置的整体结构如下：
@@ -293,7 +168,7 @@ end, opts())
 
 删除按键部分没有难度，后文将重点讨论添加按键部分。
 
-首先给出几个基础函数：
+给出几个下面会用到的 helper 函数：
 
 ```lua
 local cmp = require'cmp'
@@ -494,12 +369,12 @@ map.set({ 'i' }, k, function()
 end, opts())
 ```
 
-`auto_upload_rime(1, true)` 意味着会直接 `confirm` 第一个 rime-ls 候选词，
+`select_or_confirm_rime(1, true)` 意味着会直接 `confirm` 第一个 rime-ls 候选词，
 这表示你不能再进行后续后续选择。如果你喜欢输入句子，而不是单个词，你可以将 `true` 改为 `false`。
 
-我个人建议非语句流形码用户全部使用 `auto_upload_rime(x, true)`；
-其他用户空格和二三候选使用 `auto_upload_rime(x, true)`，
-数字按键使用 `auto_upload_rime(x, false)`。
+Kaiser-Yang 建议非语句流形码用户全部使用 `select_or_confirm_rime(x, true)`；
+其他用户空格和二三候选使用 `select_or_confirm_rime(x, true)`，
+数字按键使用 `select_or_confirm_rime(x, false)`。
 
 ## 中文标点
 
@@ -562,6 +437,7 @@ require('lspconfig').rime_ls.setup {
 
 相关 issue ：[如何实现顶字上屏](https://github.com/wlh320/rime-ls/issues/43)。
 
+
 ```lua
 -- the max_code of your schema, wubi and flypy are 4
 local max_code = 4
@@ -602,14 +478,3 @@ for i = 1, #alphabet do
 end
 ```
 
-## 完整配置
-
-查看 [kaiser-rime-ls](https://github.com/Kaiser-Yang/dotfiles/commit/3f027f0e2ebd7e123c2efae0a1b2d3d843756fa6) 。
-
-# 使用其他用户开发的插件
-
-目前没有官方实现的 neovim 插件，但已有用户将相关功能封装成了插件，例如：
-
-- [liubianshi/cmp-lsp-rimels](https://github.com/liubianshi/cmp-lsp-rimels)
-
-也可参考 issues 里其他用户的配置片段。

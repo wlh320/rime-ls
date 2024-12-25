@@ -2,13 +2,17 @@
 
 > A language server that provides input method functionality using librime.
 
-为 rime 输入法核心库 [librime](https://github.com/rime/librime) (的部分功能) 实现 LSP 协议，从而将编辑器的代码补全功能当作输入法使用。
+为 rime 输入法核心库 [librime](https://github.com/rime/librime) 的主要功能实现 LSP 协议，
+从而将编辑器的代码补全功能当作输入法使用。
 
 项目还处在**早期阶段**
 
-目标是提供 rime + LSP 的通用解决方案, 在不同编辑器内实现与其他 rime 前端类似的输入体验。
+目标是提供 rime + LSP 的通用解决方案, 在不同编辑器内实现与其他 rime 前端类似的输入体验，
+解决 vim 编辑模式下的输入法冲突和切换问题。
 
-主要使用场景是解决 vim 编辑模式下的输入法冲突以及输入法支持不完善的编辑器。
+主要使用场景:
+- 在 vim 编辑模式下写 markdown, $\LaTeX$ 等文档（更像输入法）
+- 在编程时输入特殊的变量名或者写注释（更像代码补全）
 
 ## Features
 
@@ -16,15 +20,18 @@
 - 支持按数字选择补全项
 - 支持候选词翻页
 - 多种触发方式
-  - 默认开启, 随时补全, 用快捷键控制关闭 (写大量汉字)
-  - 平时关闭, 检测到配置的特殊字符或光标前有非英文字符时触发补全 (写少量汉字)
+  - 默认开启, 随时补全, 用快捷键控制关闭 (大量输入)
+  - 平时关闭, 检测到配置的特殊字符或光标前有非英文字符时触发补全 (少量输入)
 - 可以按配置其他 rime 输入法的方式去配置 (只有能影响候选项的配置是有用的)
 - 可以同步系统中已有 rime 输入法的词频
+- 无需图形界面，可在远程登录服务器时使用
 - 可以通过 TCP 远程使用 (无任何加密，谨慎使用) (since v0.1.3)
+
+效果展示：
 
 https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-bd85-81da2bd2957f.mp4
 
-更多编辑器（nvim, helix, zed, 甚至 qt-creator）的演示效果见 [Showcase](https://github.com/wlh320/rime-ls/wiki/%E6%A1%88%E4%BE%8B%E5%B1%95%E7%A4%BA-Showcase)
+更多编辑器（nvim, helix, zed, qt-creator）下的展示见 [Showcase](https://github.com/wlh320/rime-ls/wiki/%E6%A1%88%E4%BE%8B%E5%B1%95%E7%A4%BA-Showcase)
 
 ## Usage
 
@@ -33,8 +40,8 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ### 直接使用
 
-1. 下载 Release 或自己从源码编译
-2. 将编译好的二进制文件放在喜欢的目录下
+1. 下载 Release / 自己从源码编译 / 包管理器安装
+2. 创建一个专属 rime-ls 的 rime 配置目录
 3. 配置 LSP 客戶端, 例如:
    - [Neovim + nvim-cmp](doc/nvim-with-cmp.md)
    - [Neovim + blink.cmp](doc/nvim-with-blink.md)
@@ -42,7 +49,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
    - [Vscode](doc/vscode.md)
    - [Helix](doc/helix.md)
    - [Zed](doc/zed.md)
-4. 像配置其他 Rime 输入法一样在 rime-ls 的用户目录进行配置
+4. 像配置其他 Rime 输入法一样在 rime-ls 的用户配置目录进行配置
 5. 輸入拼音, 就可以看到补全提示
 6. 可以通过修改 rime-ls 的配置项控制补全行为
 
@@ -191,16 +198,17 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 2. 某个编辑器不能用/不好用
 
    答：由于 LSP 客户端在补全上的实现都很不一致（影响用户体验的差异主要有：怎样寻找单词边界、怎样过滤候选项），
-   不能保证每个编辑器都有很好的使用体验。
+   不能保证每个编辑器默认就有很好的使用体验，可能需要配置或者插件支持。
 
 ## Contributions
 
-欢迎为本项目贡献代码，你可以：
+欢迎为本项目贡献力量，你可以：
 
 - 发现并修改代码里的 bug
 - 为某个编辑器实现相关插件
 - 提供某个编辑器的更好用的用户配置
-- 帮助实现 CI/CD
+- 提供专为 rime-ls 设计的 rime 输入方案
+- 帮助实现更好的 CI/CD
 
 ## TODO
 

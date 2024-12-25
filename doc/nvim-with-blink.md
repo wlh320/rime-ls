@@ -2,13 +2,12 @@
 
 在此给出一些 `blink.cmp` 的相关配置注意事项（以 `blink.cmp v0.8.0` 为例）：
 
-* [开启 long_filter_text](#开启-long_filter_text)
-* [修改默认的 LSP 过滤规则](#修改默认的-lsp-过滤规则)
-* [还原输入法体验](#还原输入法体验)
-    * [选词功能](#选词功能)
-    * [五笔或者双形用户](#五笔或者双形用户)
-        * [顶字上屏](#顶字上屏)
-    * [完整配置](#完整配置)
+- [开启 long_filter_text](#开启-long_filter_text)
+- [修改默认的 LSP 过滤规则](#修改默认的-lsp-过滤规则)
+- [还原输入法体验](#还原输入法体验)
+  - [选词功能](#选词功能)
+  - [五笔或者双形用户](#五笔或者双形用户)
+    - [顶字上屏](#顶字上屏)
 
 # 开启 long_filter_text
 
@@ -30,13 +29,7 @@
                             item.score_offset = item.score_offset - 3
                         end
                     end
-
                     -- you can define your own filter for rime item
-                    -- for example only accept the item whose 'label' contains no punctuations
-                    -- return vim.tbl_filter(function(item)
-                    --     return not is_rime_item(item) or rime_item_acceptable(item)
-                    -- end, items)
-                    -- or just return items
                     return items
                 end
             }
@@ -48,7 +41,11 @@
 
 # 还原输入法体验
 
-这部分配置来自 [使用 nvim-cmp + rime-ls 配置 nvim 中文输入法](https://kaiser-yang.github.io/blog/2024/nvim-input-method/)。
+你可以把 rime-ls 当成单纯的代码补全来用，也可以进行额外的配置让它更像普通的输入法。
+
+这部分配置来自 Kaiser-Yang 的博客文章 [使用 nvim-cmp + rime-ls 配置 nvim 中文输入法](https://kaiser-yang.github.io/blog/2024/nvim-input-method/)。
+
+完整配置可以参考 [Kaiser-Yang 的 dotfiles](https://github.com/Kaiser-Yang/dotfiles/commit/9901e409c4ae61aae2cb49d99a613e48459eb74b)
 
 先定义几个功能函数：
 
@@ -86,10 +83,15 @@ end
 
 相关 issue ：[用数字选词以后还需要一次空格才能上屏幕](https://github.com/wlh320/rime-ls/issues/20)。
 
-数字键依次对应候选 1-9：
+### 数字键选词后直接上屏
+
+原理：添加回调函数，每次打开补全菜单时检查，满足特定条件直接上屏
+
+
+Kaiser-Yang 提供的配置：当前输入最后一位是数字且 rime-ls 提供候选项唯一时上屏
 
 ```lua
--- auto upload when there is only one rime item after inputting a number
+-- if last char is number, and the only completion item is provided by rime-ls, accept it
 require('blink.cmp.completion.list').show_emitter:on(function(event)
     if not vim.g.rime_enabled then return end
     local col = vim.fn.col('.') - 1
@@ -101,7 +103,11 @@ require('blink.cmp.completion.list').show_emitter:on(function(event)
 end)
 ```
 
-空格首选，分号次选，单引号三选：
+有可能导致误操作，根据实际需求修改判断条件
+
+### 空格首选，分号次选，单引号三选
+
+自定义 blink.cmp 的 keymap：
 
 ```lua
 keymap = {
@@ -192,7 +198,3 @@ for i = 1, #alphabet do
     end, opts())
 end
 ```
-
-## 完整配置
-
-查看 [conifguration for blink-cmp](https://github.com/Kaiser-Yang/dotfiles/commit/9901e409c4ae61aae2cb49d99a613e48459eb74b)
