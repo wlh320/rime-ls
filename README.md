@@ -43,8 +43,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 1. 下载 Release / 自己从源码编译 / 包管理器安装
 2. 创建一个专属 rime-ls 的 rime 配置目录
 3. 配置 LSP 客戶端, 例如:
-   - [Neovim + nvim-cmp](doc/nvim-with-cmp.md)
-   - [Neovim + blink.cmp](doc/nvim-with-blink.md)
+   - [Neovim](doc/nvim.md)
    - [Vim + coc.nvim](doc/vim.md)
    - [Vscode](doc/vscode.md)
    - [Helix](doc/helix.md)

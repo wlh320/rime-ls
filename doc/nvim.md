@@ -106,7 +106,7 @@ vim.api.nvim_create_autocmd('FileType', {
 即使有了上面的配置，在 No Name 文件中依然不能自动启动，对于这种情况，需要先保存 No Name 文件，
 然后再重新打开。
 
-- [v0.10.2 后偶尔无法触发补全的问题](#v0.10.2-后偶尔无法补全的问题)
+# v0.10.2 后偶尔无法触发补全的问题
 
 相关 issue #38
 
@@ -118,12 +118,12 @@ vim.api.nvim_create_autocmd('FileType', {
    UTF-8，可以再加一句配置像这样
    https://github.com/wlh320/wlh-dotfiles/blob/85d41a30588642617177374b4cea2ec96c1b2740/config/nvim/init.lua#L457
 
-- [与 nvim-cmp 相关的额外配置](#与-nvim-cmp-相关的额外配置)
+# 与 nvim-cmp 相关的额外配置
 
 上面是对不同补全插件都适用的代码，为了更好的体验还需要配置一下补全插件。
 
 如果用 nvim-cmp 看[这个文档](./nvim-with-cmp.md)
 
-- [与 blink.cmp 相关的额外配置](#与-blink.cmp-相关的额外配置)
+# 与 blink.cmp 相关的额外配置
 
 如果用 blink.cmp 看[这个文档](./nvim-with-blink.md)
