@@ -120,9 +120,13 @@ impl InputState {
         max_tokens: usize,
     ) -> InputResult {
         let rime = Rime::global();
-        let has_session = rime.find_session(self.session_id);
-        // new typing (create new session)
-        if self.offset != new_offset || !has_session || !self.is_incomplete {
+        // totally new typing (create new session)
+        if !rime.find_session(self.session_id) {
+            return Self::handle_first_input(new_input, schema_trigger);
+        }
+        // typing with new offset (destroy old session and create new one)
+        if self.offset != new_offset || !self.is_incomplete {
+            rime.destroy_session(self.session_id);
             return Self::handle_first_input(new_input, schema_trigger);
         }
         // continue last typing (with last session)
