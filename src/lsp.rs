@@ -150,40 +150,36 @@ impl Backend {
         let new_input = {
             let re = self.regex.read().await;
             let has_trigger = !self.config.read().await.trigger_characters.is_empty();
+            let schema_trigger = &self.config.read().await.schema_trigger_character;
             (curr_char <= rope.len_chars()).then(|| {
                 let slice = Cow::from(rope.slice(line_begin..curr_char));
                 if utils::need_to_check_trigger(has_trigger, &slice) {
-                    Input::from_str(&re, &slice)
+                    Input::new(&re, &slice, schema_trigger)
                 } else {
-                    Input::from_str(&NT_RE, &slice)
+                    Input::new(&NT_RE, &slice, schema_trigger)
                 }
             })??
         };
-        let new_offset = curr_char - new_input.borrow_raw_text().len();
+        let new_offset = curr_char - new_input.raw_text().len();
 
         // handle new input
         let mut last_state = self.state.entry(uri.into()).or_default();
         let InputResult {
             session_id,
-            raw_input,
+            extra_offset,
         } = match (*last_state).as_ref() {
             Some(state) => {
-                let schema_trigger = &self.config.read().await.schema_trigger_character;
                 let max_tokens = self.config.read().await.max_tokens;
-                state.handle_new_input(new_offset, &new_input, schema_trigger, max_tokens)
+                state.apply_input(new_offset, &new_input, max_tokens)
             }
-            None => {
-                let schema_trigger = &self.config.read().await.schema_trigger_character;
-                InputState::handle_first_input(&new_input, schema_trigger)
-            }
+            None => InputState::first_input(&new_input),
         };
 
-        // prevent deleting puncts before real pinyin input
-        let real_offset = new_offset
-            + raw_input
-                .and_then(utils::option_string)
-                .and_then(|rime_raw_input| new_input.borrow_pinyin().rfind(&rime_raw_input))
-                .unwrap_or(0);
+        // NOTE: prevent deleting puncts before real pinyin input
+        //       to achieve this, puncts in rime schema should be committed directly
+        let real_offset = new_offset + extra_offset;
+        dbg!(real_offset);
+
         let start_position = utils::offset_to_position(&rope, real_offset, encoding)?;
         let range = Range::new(start_position, position);
         let filter_prefix = (self.config.read().await.long_filter_text).then_some({
@@ -209,7 +205,7 @@ impl Backend {
         };
 
         let is_selecting = new_input.is_selecting();
-        let filter_text = filter_prefix.unwrap_or_default() + new_input.borrow_raw_text();
+        let filter_text = filter_prefix.unwrap_or_default() + new_input.raw_text();
 
         // update input state
         *last_state = Some(InputState::new(

@@ -95,6 +95,12 @@ pub fn need_to_check_trigger(has_trigger: bool, line: &str) -> bool {
     has_trigger && !AUTO_TRIGGER_RE.is_match(line)
 }
 
+/// if schema is triggered with pinyin
+#[inline]
+pub fn is_schema_triggered(pinyin: &str, schema_trigger: &str) -> bool {
+    !schema_trigger.is_empty() && pinyin == schema_trigger
+}
+
 /// convert empty string to None
 #[inline]
 pub fn option_string(s: String) -> Option<String> {
