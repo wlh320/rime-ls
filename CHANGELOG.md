@@ -1,3 +1,19 @@
+# v0.4.2
+
+## Fix
+
+- 会话没有及时删除导致的内存占用增加 #51
+  - 自测 Windows / Linux 没问题，有用户反映 macOS 没用，need more test #50
+
+## Doc
+
+- 增加了 neovim v0.11 的配置示例
+
+## Chore
+
+- 不再提示 info 级别的消息，只提示 error 级别 (Thanks to twio142 #53 #54)
+- 使用 Alpine 自带的 rime-plugins 包，提升 Docker 镜像打包速度
+
 # v0.4.1
 
 ## Feat
