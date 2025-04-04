@@ -179,7 +179,6 @@ impl Backend {
         // NOTE: prevent deleting puncts before real pinyin input
         //       to achieve this, puncts in rime schema should be committed directly
         let real_offset = new_offset + extra_offset;
-        dbg!(real_offset);
 
         let start_position = utils::offset_to_position(&rope, real_offset, encoding)?;
         let range = Range::new(start_position, position);

@@ -71,6 +71,54 @@ impl Input {
     pub fn is_selecting(&self) -> bool {
         !self.internal.borrow_select().is_empty()
     }
+
+    #[inline]
+    fn process_pinyin(&self, rime: &Rime, session_id: usize) {
+        if self.is_schema() {
+            // TODO: support other shortcuts?
+            rime.process_key(session_id, KEY_F4);
+        } else {
+            rime.process_str(session_id, self.pinyin());
+        }
+    }
+
+    #[inline]
+    fn process_select(&self, rime: &Rime, session_id: usize) {
+        rime.process_str(session_id, self.select());
+    }
+
+    /// diff current pinyin with new input, and do rime thing
+    pub fn diff_pinyin(&self, rime: &Rime, session_id: usize, new_input: &Self, refresh: bool) {
+        match utils::diff(self.pinyin(), new_input.pinyin()) {
+            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
+            DiffResult::Delete(suffix) => {
+                if refresh {
+                    rime.clear_composition(session_id);
+                    new_input.process_pinyin(rime, session_id);
+                    new_input.process_select(rime, session_id);
+                }
+                rime.delete_keys(session_id, suffix.len())
+            }
+            DiffResult::New => {
+                rime.clear_composition(session_id);
+                new_input.process_pinyin(rime, session_id);
+            }
+            _ => (),
+        }
+    }
+
+    /// diff current select with new input, and do rime thing
+    pub fn diff_select(&self, rime: &Rime, session_id: usize, new_input: &Self) {
+        match utils::diff(self.select(), new_input.select()) {
+            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
+            DiffResult::Delete(suffix) => rime.delete_keys(session_id, suffix.len()),
+            DiffResult::New => {
+                rime.delete_keys(session_id, self.select().len());
+                rime.process_str(session_id, new_input.select());
+            }
+            _ => (),
+        }
+    }
 }
 
 /// save input state
@@ -100,16 +148,6 @@ impl InputState {
     }
 
     #[inline]
-    fn process_pinyin(rime: &Rime, session_id: usize, input: &Input) {
-        if input.is_schema() {
-            // TODO: support other shortcuts?
-            rime.process_key(session_id, KEY_F4);
-        } else {
-            rime.process_str(session_id, input.pinyin());
-        }
-    }
-
-    #[inline]
     fn assemble_result(session_id: usize, pinyin: &str, raw_input: Option<String>) -> InputResult {
         let extra_offset = raw_input
             .and_then(utils::option_string)
@@ -125,52 +163,23 @@ impl InputState {
         let rime = Rime::global();
         let session_id = rime.create_session();
 
-        Self::process_pinyin(rime, session_id, new_input);
-        rime.process_str(session_id, new_input.select());
+        new_input.process_pinyin(rime, session_id);
+        new_input.process_select(rime, session_id);
 
         let raw_input = rime.get_raw_input(session_id);
         Self::assemble_result(session_id, new_input.pinyin(), raw_input)
     }
 
-    fn continue_input(&self, new_input: &Input, max_tokens: usize) -> InputResult {
+    fn continue_input(&self, new_input: &Input, refresh: bool) -> InputResult {
         let rime = Rime::global();
         let session_id = self.session_id;
-
-        let old_pinyin = self.input.pinyin();
-        let pinyin = new_input.pinyin();
-        let old_select = self.input.select();
-        let select = new_input.select();
-
-        match utils::diff(old_pinyin, pinyin) {
-            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
-            DiffResult::Delete(suffix) => {
-                // if current pinyin len == max_tokens, force new typing
-                if max_tokens > 0 && max_tokens == pinyin.len() {
-                    rime.clear_composition(session_id);
-                    Self::process_pinyin(rime, session_id, new_input);
-                    rime.process_str(session_id, select);
-                }
-                rime.delete_keys(session_id, suffix.len())
-            }
-            DiffResult::New => {
-                rime.clear_composition(session_id);
-                Self::process_pinyin(rime, session_id, new_input);
-            }
-            _ => (),
-        }
-        // get raw input before select or we may get empty string
+        // 1. handle pinyin of new_input
+        self.input.diff_pinyin(rime, session_id, new_input, refresh);
+        // 2. get raw input before handling select or we may get empty string
         let raw_input = rime.get_raw_input(session_id);
-
-        match utils::diff(old_select, select) {
-            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
-            DiffResult::Delete(suffix) => rime.delete_keys(session_id, suffix.len()),
-            DiffResult::New => {
-                rime.delete_keys(session_id, old_select.len());
-                rime.process_str(session_id, select);
-            }
-            _ => (),
-        }
-        Self::assemble_result(session_id, pinyin, raw_input)
+        // 3. handle select of new_input
+        self.input.diff_select(rime, session_id, new_input);
+        Self::assemble_result(session_id, new_input.pinyin(), raw_input)
     }
 
     pub fn apply_input(&self, new_offset: usize, input: &Input, max_tokens: usize) -> InputResult {
@@ -185,6 +194,8 @@ impl InputState {
             return Self::first_input(input);
         }
         // 3. continue last typing, diff and process (with last session)
-        self.continue_input(input, max_tokens)
+        // if current pinyin len == max_tokens, force refreshing
+        let refresh: bool = max_tokens > 0 && max_tokens == input.pinyin().len();
+        self.continue_input(input, refresh)
     }
 }
