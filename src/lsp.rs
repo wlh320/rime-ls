@@ -77,7 +77,8 @@ impl Backend {
         let settings = match serde_json::from_value::<Settings>(params) {
             Ok(s) => s,
             Err(e) => {
-                self.client.log_message(MessageType::ERROR, e).await;
+                self.client.log_message(MessageType::ERROR, &e).await;
+                self.client.show_message(MessageType::ERROR, e).await;
                 return;
             }
         };
@@ -199,7 +200,8 @@ impl Backend {
         } = match rime.get_response_from_session(session_id) {
             Ok(r) => r,
             Err(e) => {
-                self.client.log_message(MessageType::ERROR, e).await;
+                self.client.log_message(MessageType::ERROR, &e).await;
+                self.client.show_message(MessageType::ERROR, e).await;
                 None?
             }
         };
@@ -286,7 +288,8 @@ impl LanguageServer for Backend {
         }
         // init rime
         if let Err(e) = self.init().await {
-            self.client.log_message(MessageType::ERROR, e).await;
+            self.client.log_message(MessageType::ERROR, &e).await;
+            self.client.show_message(MessageType::ERROR, e).await;
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
         // notify client
