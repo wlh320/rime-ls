@@ -9,11 +9,11 @@
   - [五笔或者双形用户](#五笔或者双形用户)
     - [顶字上屏](#顶字上屏)
 
-# 开启 long_filter_text
+## 开启 long_filter_text
 
 `blink.cmp` 对于候选词的过滤比较严格，需要将 rime-ls 的 `long_filter_text` 配置设置为 `true`。
 
-# 修改默认的 LSP 过滤规则
+## 修改默认的 LSP 过滤规则
 
 `blink.cmp` 将 LSP 服务器提供的 Text 类型补全也过滤掉了，为了启用 rime-ls，需要修改相关配置:
 
@@ -39,7 +39,7 @@
 
 ```
 
-# 还原输入法体验
+## 还原输入法体验
 
 你可以把 rime-ls 当成单纯的代码补全来用，也可以进行额外的配置让它更像普通的输入法。
 
@@ -79,11 +79,11 @@ function get_n_rime_item_index(n, items)
 end
 ```
 
-## 选词功能
+### 选词功能
 
 相关 issue ：[用数字选词以后还需要一次空格才能上屏幕](https://github.com/wlh320/rime-ls/issues/20)。
 
-### 数字键选词后直接上屏
+#### 数字键选词后直接上屏
 
 原理：添加回调函数，每次打开补全菜单时检查，满足特定条件直接上屏
 
@@ -105,7 +105,7 @@ end)
 
 有可能导致误操作，根据实际需求修改判断条件
 
-### 空格首选，分号次选，单引号三选
+#### 空格首选，分号次选，单引号三选
 
 自定义 blink.cmp 的 keymap：
 
@@ -141,7 +141,7 @@ keymap = {
 }
 ```
 
-## 五笔或者双形用户
+### 五笔或者双形用户
 
 确保 `always_incomplete` 为 `true`，这样可以保证每次输入都会重新生成候选词。
 
@@ -157,7 +157,7 @@ require('lspconfig').rime_ls.setup {
 }
 ```
 
-### 顶字上屏
+#### 顶字上屏
 
 相关 issue ：[如何实现顶字上屏](https://github.com/wlh320/rime-ls/issues/43)。
 

@@ -76,13 +76,13 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
     "log_dir": "~/.local/share/rime-ls", // 指定 rime 日志文件夹
     "max_candidates": 9,  // [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
     "trigger_characters": [],  // 为空表示全局开启，否则列表内字符后面的内容才会触发补全
-    "schema_trigger_character": "&" // [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
+    "schema_trigger_character": "&", // [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
     "paging_characters": [",", ".", "-", "="], // [since v0.2.4] 输入这些符号会强制触发一次补全，可用于翻页 见 issue #13
-    "max_tokens": 0 // [since v0.2.0] 大于 0 表示会在删除到这个字符个数的时候，重建所有候选词，而不使用删除字符操作，见 pr #7
-    "always_incomplete": false // [since v0.2.0] true 强制补全永远刷新整个列表，而不是使用过滤，见 pr #7
-    "preselect_first": false // [since v0.2.3] 是否默认选择第一个候选项
-    "long_filter_text": false // [since v0.3.0] 使用更长的 filter_text，某些编辑器如 helix/zed 连续补全需要设置 true
-    "show_filter_text_in_label": false // [since v0.3.0] 在候选项的 label 中显示 filter_text，某些编辑器如 zed 需要设置 true
+    "max_tokens": 0, // [since v0.2.0] 大于 0 表示会在删除到这个字符个数的时候，重建所有候选词，而不使用删除字符操作，见 pr #7
+    "always_incomplete": false, // [since v0.2.0] true 强制补全永远刷新整个列表，而不是使用过滤，见 pr #7
+    "preselect_first": false, // [since v0.2.3] 是否默认选择第一个候选项
+    "long_filter_text": false, // [since v0.3.0] 使用更长的 filter_text，某些编辑器如 helix/zed 连续补全需要设置 true
+    "show_filter_text_in_label": false, // [since v0.3.0] 在候选项的 label 中显示 filter_text，某些编辑器如 zed 需要设置 true
     "show_order_in_label": true // [since v0.4.0] 在候选项的 label 中显示数字
   }
 }

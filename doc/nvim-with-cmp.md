@@ -10,7 +10,7 @@
   - [五笔或者双形用户](#五笔或者双形用户)
     - [顶字上屏](#顶字上屏)
 
-# 按需调整 cmp 的排序
+## 按需调整 cmp 的排序
 
 cmp 会对补全候选进行排序,
 为了更好的使用体验, 还需要配置 nvim-cmp
@@ -42,7 +42,7 @@ cmp.setup {
 }
 ```
 
-# 还原输入法体验
+## 还原输入法体验
 
 你可以把 rime-ls 当成单纯的代码补全来用，也可以进行额外的配置让它更像普通的输入法。
 
@@ -215,7 +215,7 @@ end
 （例如 `auto-pairs` 绑定 `<space>` 来在括号中插入两个空格），或者你自己绑定了一些功能，
 如果你想同时保留两部分功能，你可以参考 <a href="#upload-word">选词功能</a> 部分的配置。
 
-## <a id="upload-word">选词功能</a>
+### <a id="upload-word">选词功能</a>
 
 相关 issue ：[用数字选词以后还需要一次空格才能上屏幕](https://github.com/wlh320/rime-ls/issues/20)。
 
@@ -276,7 +276,7 @@ Kaiser-Yang 建议非语句流形码用户全部使用 `select_or_confirm_rime(x
 其他用户空格和二三候选使用 `select_or_confirm_rime(x, true)`，
 数字按键使用 `select_or_confirm_rime(x, false)`。
 
-## 中文标点
+### 中文标点
 
 相关 issue ：[英文标点符号后空格才能触发补全](https://github.com/wlh320/rime-ls/issues/10)。
 
@@ -310,13 +310,13 @@ for k, v in pairs(mapped_punc) do
 end
 ```
 
-## 输入过快补全列表消失
+### 输入过快补全列表消失
 
 相关 issue ：[feat: add rime-ls.get-first-candidate command](https://github.com/wlh320/rime-ls/pull/41)。
 
 使用以上配置后，该问题已经解决。
 
-## 五笔或者双形用户
+### 五笔或者双形用户
 
 确保 `max_token` 为最大码长，`always_incomplete` 为 `true`，这样可以保证每次输入都会重新生成候选词。
 
@@ -333,7 +333,7 @@ require('lspconfig').rime_ls.setup {
 }
 ```
 
-### 顶字上屏
+#### 顶字上屏
 
 相关 issue ：[如何实现顶字上屏](https://github.com/wlh320/rime-ls/issues/43)。
 
