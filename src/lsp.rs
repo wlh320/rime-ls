@@ -52,7 +52,7 @@ impl Backend {
         match Rime::init(shared_data_dir, user_data_dir, log_dir) {
             Err(RimeError::AlreadyInitialized) => {
                 let info = "Use an initialized rime instance.";
-                self.client.show_message(MessageType::INFO, info).await;
+                self.client.log_message(MessageType::INFO, info).await;
                 Ok(())
             }
             r => r,
@@ -77,7 +77,7 @@ impl Backend {
         let settings = match serde_json::from_value::<Settings>(params) {
             Ok(s) => s,
             Err(e) => {
-                self.client.show_message(MessageType::ERROR, e).await;
+                self.client.log_message(MessageType::ERROR, e).await;
                 return;
             }
         };
@@ -106,7 +106,7 @@ impl Backend {
             })
             .await
         {
-            self.client.show_message(MessageType::WARNING, e).await;
+            self.client.log_message(MessageType::WARNING, e).await;
             return Err(tower_lsp::jsonrpc::Error::internal_error());
         }
         Ok(token)
@@ -434,7 +434,7 @@ impl LanguageServer for Backend {
             }
             _ => {
                 self.client
-                    .show_message(MessageType::WARNING, "No such rime-ls command")
+                    .log_message(MessageType::WARNING, "No such rime-ls command")
                     .await;
             }
         }
