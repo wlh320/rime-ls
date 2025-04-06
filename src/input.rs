@@ -147,6 +147,10 @@ impl InputState {
         }
     }
 
+    pub fn session_id(&self) -> usize {
+        self.session_id
+    }
+
     #[inline]
     fn assemble_result(session_id: usize, pinyin: &str, raw_input: Option<String>) -> InputResult {
         let extra_offset = raw_input

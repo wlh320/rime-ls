@@ -348,6 +348,13 @@ impl LanguageServer for Backend {
     }
 
     async fn shutdown(&self) -> Result<()> {
+        // destroy rime sessions on server shutdown
+        let rime = Rime::global();
+        for kvref in self.state.iter() {
+            if let Some(state) = kvref.value().as_ref() {
+                rime.destroy_session(state.session_id());
+            }
+        }
         Ok(())
     }
 
