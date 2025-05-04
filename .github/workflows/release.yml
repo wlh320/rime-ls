@@ -47,7 +47,7 @@ jobs:
 
       - name: Build Linux
         run: |
-          LIBRIME_INCLUDE_DIR=/usr/include LIBRIME_LIB_DIR=/usr/lib cargo zigbuild --target x86_64-unknown-linux-gnu.2.17 --release
+          LIBRIME_INCLUDE_DIR=/usr/include LIBRIME_LIB_DIR=/usr/lib/x86_64-linux-gnu cargo zigbuild --target x86_64-unknown-linux-gnu.2.17 --release
 
       - name: Build Windows
         run: |
