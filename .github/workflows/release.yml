@@ -6,8 +6,8 @@ on:
       - 'doc/**'
       - 'README.md'
   workflow_dispatch:
-  push:
-    tags: ["v*.*.*"]
+  # push:
+  #   tags: ["v*.*.*"]
 
 
 env:
