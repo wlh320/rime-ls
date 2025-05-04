@@ -1,6 +1,10 @@
 name: Release
 
 on:
+  push:
+    paths-ignore:
+      - 'doc/**'
+      - 'README.md'
   workflow_dispatch:
   push:
     tags: ["v*.*.*"]
