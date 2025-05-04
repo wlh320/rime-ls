@@ -51,14 +51,17 @@ jobs:
 
       - name: Build Windows
         run: |
-          LIBRIME_INCLUDE_DIR=./librime/msvc/dist/include LIBRIME_LIB_DIR=./librime/msvc/dist/lib cargo xwin build --target x86_64-pc-windows-msvc --release
+          LIBRIME_INCLUDE_DIR=${GITHUB_WORKSPACE}/librime/msvc/dist/include LIBRIME_LIB_DIR=${GITHUB_WORKSPACE}/librime/msvc/dist/lib cargo xwin build --target x86_64-pc-windows-msvc --release
 
       - name: Build macOS
         run: |
-          LIBRIME_INCLUDE_DIR=./librime/mac/dist/include LIBRIME_LIB_DIR=./librime/mac/dist/lib cargo zigbuild --target universal2-apple-darwin --release
+          LIBRIME_INCLUDE_DIR=${GITHUB_WORKSPACE}/librime/mac/dist/include LIBRIME_LIB_DIR=${GITHUB_WORKSPACE}/librime/mac/dist/lib cargo zigbuild --target universal2-apple-darwin --release
 
       - name: Archive
         run: |
+          sha256sum target/x86_64-pc-windows-msvc/release/rime_ls.exe
+          sha256sum target/universal2-apple-darwin/release/rime_ls
+          sha256sum target/x86_64-unknown-linux-gnu/release/rime_ls
           tar czvf target/rime-ls-$RIME_LS_VER-x86_64-unknown-linux-gnu.tar.gz -Ctarget/x86_64-unknown-linux-gnu/release/ rime_ls
           tar cjvf target/rime-ls-$RIME_LS_VER-universal2-apple-darwin.tar.bz2 -Ctarget/universal2-apple-darwin/release/ rime_ls
           7z a ./target/rime-ls-$RIME_LS_VER-x86_64-pc-windows-msvc.7z ./target/x86_64-pc-windows-msvc/release/rime_ls.exe 
