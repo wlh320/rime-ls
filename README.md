@@ -11,6 +11,7 @@
 解决 vim 编辑模式下的输入法冲突和切换问题。
 
 主要使用场景:
+
 - 在 vim 编辑模式下写 markdown, $\LaTeX$ 等文档（更像输入法）
 - 在编程时输入特殊的变量名或者写注释（更像代码补全）
 
@@ -74,8 +75,8 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
     "shared_data_dir": "/usr/share/rime-data", // 指定 rime 共享文件夹
     "user_data_dir": "~/.local/share/rime-ls", // 指定 rime 用户文件夹，最好别与其他 rime 前端共用
     "log_dir": "~/.local/share/rime-ls", // 指定 rime 日志文件夹
-    "max_candidates": 9,  // [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
-    "trigger_characters": [],  // 为空表示全局开启，否则列表内字符后面的内容才会触发补全
+    "max_candidates": 9, // [v0.2.0 后不再有用] 与 rime 的候选数量配置最好保持一致
+    "trigger_characters": [], // 为空表示全局开启，否则列表内字符后面的内容才会触发补全
     "schema_trigger_character": "&", // [since v0.2.0] 当输入此字符串时请求补全会触发 “方案选单”
     "paging_characters": [",", ".", "-", "="], // [since v0.2.4] 输入这些符号会强制触发一次补全，可用于翻页 见 issue #13
     "max_tokens": 0, // [since v0.2.0] 大于 0 表示会在删除到这个字符个数的时候，重建所有候选词，而不使用删除字符操作，见 pr #7
@@ -86,7 +87,6 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
     "show_order_in_label": true // [since v0.4.0] 在候选项的 label 中显示数字
   }
 }
-
 ```
 
 ## Build
@@ -106,41 +106,48 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ### NixOS
 
-可以参考 NUR 打包 [nur.repos.definfo.rime-ls](https://github.com/nix-community/nur-combined/blob/master/repos/definfo/pkgs/rime-ls/default.nix)
+本项目已收录至 [nixpkgs](https://github.com/NixOS/nixpkgs/blob/master/pkgs/by-name/ri/rime-ls/package.nix)
 
-使用 home-manager 管理配置时，应将 `shared_data_dir` 路径替换为 `${pkgs.nur.repos.definfo.rime-ls}/share/rime-data`
+编辑器配置 `shared_data_dir` 时，需要根据 `rime-data` 的管理方式进行对应设置：
 
-以 Helix 为例:
+1. 如不使用 Nix 安装 `rime-data`（eg. 使用 Git 仓库管理）：
 
-```nix
-  programs.helix = {
-    languages = {
-      language-server.rime-ls = {
-        command = "${pkgs.nur.repos.definfo.rime-ls}/bin/rime_ls";
-        config.shared_data_dir = "${pkgs.nur.repos.definfo.rime-ls}/share/rime-data";
-        config.user_data_dir = "${config.home.homeDirectory}/.local/share/rime-ls";
-        config.log_dir = "${config.home.homeDirectory}/.local/share/rime-ls";
-        config.max_candidates = 9;
-        config.trigger_characters = [ ];
-        config.schema_trigger_character = "&";
-        config.max_tokens = 4;
-        config.always_incomplete = true;
-        config.long_filter_text = true;
-      };
-      language = [
-        {
-          name = "markdown";
-          scope = "source.markdown";
-          file-types = [
-            "md"
-            "markdown"
-          ];
-          language-servers = [ "rime-ls" ];
-        }
-      ];
-    };
-  };
-```
+   同其他发行版，`shared_data_dir` 设置为 `<rime-data-root-dir>/share/rime-data` 即可（注意 NixOS 不提供 `/usr/share` 路径，请将 `rime-data` 保存至其他可写入路径下）。
+
+2. 如使用 Nix 安装 `rime-data`:
+
+   可以在 NixOS configuration 中设置 `RIME_DATA_DIR` 环境变量：
+   
+   ```Nix
+   {
+     environment.variables."RIME_DATA_DIR" = "${pkgs.rime-data}/share/rime-data";
+   }
+   ```
+   
+   或在 NixOS configuration 中创建固定路径到 `rime-data` 的软链接：
+
+   ```Nix
+   { pkgs, ... }:
+   {
+     # symlink to `/var/lib/rime-ls/rime-data`
+     systemd.tmpfiles.rules = [
+       # ...
+       "L+ /var/lib/rime-ls/rime-data - - - - ${pkgs.rime-data}/share/rime-data"
+     ];
+     # OR symlink to `/etc/rime-ls/rime-data`
+     environment.etc."rime-ls/rime-data" = {
+       enable = true;
+       mode = "symlink";
+       source = "${pkgs.rime-data}/share/rime-data";
+     };
+   }
+   ```
+
+   之后在编辑器配置中，设置 `shared_data_dir` 为 `${RIME_DATA_DIR}` 或以上设置的软链接路径。
+   
+   如需使用自定义的 `rime-data` 配置，可以通过 Nix expression 打包并安装，替换上述 `${pkgs.rime-data}` 为对应包名即可。
+
+   TIP: Nixpkgs/NUR 现提供了 `rime-ice` `rime-zhwiki` 等第三方配置，但暂无自动合并配置的解决方案，建议有需求的用户自行维护。
 
 ### Windows
 
@@ -160,7 +167,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 2. 安装 [librime](https://github.com/rime/librime)
    从此项目中的 [Release](https://github.com/rime/librime/releases/)
    下载最新的 MacOS 相关的压缩包，解压缩后将 include 文件夹以及 lib 文件夹下的内容分别复制到 `/usr/local/include` 和 `/usr/local/lib`;
-3. 设置环境变量以便编译时找到 librime 的相关文件（参考[相关issue](https://github.com/wlh320/rime-ls/issues/24)）
+3. 设置环境变量以便编译时找到 librime 的相关文件（参考[相关 issue](https://github.com/wlh320/rime-ls/issues/24)）
 
    ```bash
    # 用于编译
@@ -177,8 +184,7 @@ https://user-images.githubusercontent.com/14821247/213079440-f0ab2ddd-5e44-4e41-
 
 ## 个人词库同步
 
-> [!WARNING]
-> **不推荐**与系统中的已有 rime 输入法共用一个用户目录，避免数据库上锁无法使用。
+> [!WARNING] > **不推荐**与系统中的已有 rime 输入法共用一个用户目录，避免数据库上锁无法使用。
 > 使用前备份自己的数据, 避免因作者对 rime API 理解不到位可能造成的数据损失。
 
 可以通过 rime 的 sync 功能将系统中已安装的 rime 输入法的词库同步过来。
