@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*.*.*"]
+
+
+env:
+  LIBRIME_VER: "1.13.1"
+  LIBRIME_HASH: "1c23358"
+  RIME_LS_VER: "${{ github.ref_name }}"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+          targets: x86_64-unknown-linux-gnu,x86_64-pc-windows-msvc,x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Install dependencies
+        run: |
+          sudo apt install -y librime-dev p7zip
+          pip3 install ziglang
+
+      - name: Install cargo dependencies
+        run: |
+          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-xwin
+
+      - name: Download librime
+        run: |
+          mkdir librime
+          wget https://github.com/rime/librime/releases/download/$LIBRIME_VER/rime-$LIBRIME_HASH-macOS-universal.tar.bz2 -O librime/mac.tar.bz2
+          mkdir librime/mac
+          tar xvjf librime/mac.tar.bz2 -C librime/mac
+          wget https://github.com/rime/librime/releases/download/$LIBRIME_VER/rime-$LIBRIME_HASH-Windows-msvc-x64.7z -O librime/msvc.7z
+          7z x librime/msvc.7z -olibrime/msvc
+
+      - name: Build Linux
+        run: |
+          LIBRIME_INCLUDE_DIR=/usr/include LIBRIME_LIB_DIR=/usr/lib/x86_64-linux-gnu cargo zigbuild --target x86_64-unknown-linux-gnu.2.17 --release
+
+      - name: Build Windows
+        run: |
+          LIBRIME_INCLUDE_DIR=${GITHUB_WORKSPACE}/librime/msvc/dist/include LIBRIME_LIB_DIR=${GITHUB_WORKSPACE}/librime/msvc/dist/lib cargo xwin build --target x86_64-pc-windows-msvc --release
+
+      - name: Build macOS
+        run: |
+          LIBRIME_INCLUDE_DIR=${GITHUB_WORKSPACE}/librime/mac/dist/include LIBRIME_LIB_DIR=${GITHUB_WORKSPACE}/librime/mac/dist/lib cargo zigbuild --target universal2-apple-darwin --release
+
+      - name: Archive
+        run: |
+          sha256sum target/x86_64-pc-windows-msvc/release/rime_ls.exe
+          sha256sum target/universal2-apple-darwin/release/rime_ls
+          sha256sum target/x86_64-unknown-linux-gnu/release/rime_ls
+          tar czvf target/rime-ls-$RIME_LS_VER-x86_64-unknown-linux-gnu.tar.gz -Ctarget/x86_64-unknown-linux-gnu/release/ rime_ls
+          tar cjvf target/rime-ls-$RIME_LS_VER-universal2-apple-darwin.tar.bz2 -Ctarget/universal2-apple-darwin/release/ rime_ls
+          7z a ./target/rime-ls-$RIME_LS_VER-x86_64-pc-windows-msvc.7z ./target/x86_64-pc-windows-msvc/release/rime_ls.exe 
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact
+          path: |
+            target/rime-ls-${{ env.RIME_LS_VER }}-x86_64-unknown-linux-gnu.tar.gz
+            target/rime-ls-${{ env.RIME_LS_VER }}-universal2-apple-darwin.tar.bz2
+            target/rime-ls-${{ env.RIME_LS_VER }}-x86_64-pc-windows-msvc.7z
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: |
+            target/rime-ls-${{ env.RIME_LS_VER }}-x86_64-unknown-linux-gnu.tar.gz
+            target/rime-ls-${{ env.RIME_LS_VER }}-universal2-apple-darwin.tar.bz2
+            target/rime-ls-${{ env.RIME_LS_VER }}-x86_64-pc-windows-msvc.7z
+
