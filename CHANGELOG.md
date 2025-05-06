@@ -1,3 +1,20 @@
+# v0.4.3
+
+## Fix
+
+- 通过 TCP 使用在关闭连接时没有删除会话 (应该解决了 #50)
+
+## Doc
+
+- 更新 nixOS 下的使用方法 (Thanks to definfo #59)
+
+## Chore
+
+- 增加 Release 的 CI
+- 更新 Docker 相关 CI
+  - 同时发布到 ghcr.io 和 Docker Hub
+  - 镜像支持 linux/riscv64 平台
+
 # v0.4.2
 
 ## Fix
