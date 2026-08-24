@@ -87,23 +87,43 @@ impl Input {
         rime.process_str(session_id, self.select());
     }
 
-    /// diff current pinyin with new input, and do rime thing
-    pub fn diff_pinyin(&self, rime: &Rime, session_id: usize, new_input: &Self, refresh: bool) {
+    /// diff current pinyin with new input, and do rime thing.
+    /// returns true if the composition was rebuilt from scratch (refresh path);
+    /// in that case the caller must not diff the select part afterwards, since
+    /// the select has already been replayed as part of the rebuild.
+    pub fn diff_pinyin(
+        &self,
+        rime: &Rime,
+        session_id: usize,
+        new_input: &Self,
+        refresh: bool,
+    ) -> bool {
         match utils::diff(self.pinyin(), new_input.pinyin()) {
-            DiffResult::Add(suffix) => rime.process_str(session_id, suffix),
+            DiffResult::Add(suffix) => {
+                rime.process_str(session_id, suffix);
+                false
+            }
             DiffResult::Delete(suffix) => {
                 if refresh {
+                    // deleting at the max_tokens boundary: some schemas keep stale
+                    // state after backspace, so rebuild the whole composition to
+                    // exactly the new input instead of sending delete keys. The
+                    // rebuilt composition already reflects the deletion.
                     rime.clear_composition(session_id);
                     new_input.process_pinyin(rime, session_id);
                     new_input.process_select(rime, session_id);
+                    true
+                } else {
+                    rime.delete_keys(session_id, suffix.len());
+                    false
                 }
-                rime.delete_keys(session_id, suffix.len())
             }
             DiffResult::New => {
                 rime.clear_composition(session_id);
                 new_input.process_pinyin(rime, session_id);
+                false
             }
-            _ => (),
+            _ => false,
         }
     }
 
@@ -178,11 +198,13 @@ impl InputState {
         let rime = Rime::global();
         let session_id = self.session_id;
         // 1. handle pinyin of new_input
-        self.input.diff_pinyin(rime, session_id, new_input, refresh);
+        let rebuilt = self.input.diff_pinyin(rime, session_id, new_input, refresh);
         // 2. get raw input before handling select or we may get empty string
         let raw_input = rime.get_raw_input(session_id);
         // 3. handle select of new_input
-        self.input.diff_select(rime, session_id, new_input);
+        if !rebuilt {
+            self.input.diff_select(rime, session_id, new_input);
+        }
         Self::assemble_result(session_id, new_input.pinyin(), raw_input)
     }
 

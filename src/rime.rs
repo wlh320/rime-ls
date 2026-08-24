@@ -2,14 +2,14 @@ use crate::consts::{APP_NAME, KEY_BACKSPACE, KEY_ESCAPE, RAW_RE};
 use librime_sys as librime;
 use once_cell::sync::OnceCell;
 use std::ffi::{c_char, CStr, CString, NulError};
-use std::sync::Mutex;
 use thiserror::Error;
 
 macro_rules! rime_struct {
     ($type:ty) => {{
         let mut var: $type = unsafe { std::mem::zeroed() };
-        var.data_size =
-            (std::mem::size_of::<$type>() - std::mem::size_of_val(&var.data_size)) as i32;
+        // librime validates `data_size >= offsetof(last used field)`, and the
+        // whole struct size satisfies that check (matches librime-sys's own tests)
+        var.data_size = std::mem::size_of::<$type>() as i32;
         var
     }};
 }
@@ -17,10 +17,10 @@ macro_rules! rime_struct {
 macro_rules! rime_call {
     ( $api_struct:ident -> $api_fn:ident $(, $arg:expr)* ) => {
         {
-            let api = unsafe { *$api_struct };
-            let api_fn = api.$api_fn.expect(
-                format!("missing api function: {}", stringify!($api_fn)).as_str()
-            );
+            // take a reference instead of copying the whole (large) RimeApi struct
+            let api = unsafe { &*$api_struct };
+            let api_fn = api.$api_fn
+                .expect(concat!("missing api function: ", stringify!($api_fn)));
             unsafe { api_fn($($arg),*) }
         }
     };
@@ -65,6 +65,10 @@ pub enum RimeError {
     GetCandidatesFailed,
     #[error("session {0} not found")]
     SessionNotFound(usize),
+    #[error("invalid path: {0}")]
+    InvalidPath(String),
+    #[error("failed to join rime worker thread")]
+    TaskJoinFailed,
 }
 
 #[derive(Debug)]
@@ -97,24 +101,34 @@ impl Rime {
         log_dir: &str,
     ) -> Result<(), RimeError> {
         if Rime::is_initialized() {
-            Err(RimeError::AlreadyInitialized)?
+            return Err(RimeError::AlreadyInitialized);
         }
+        // build all CStrings up front so a failure cannot leak earlier ones
+        let shared_data_dir = CString::new(shared_data_dir)?;
+        let user_data_dir = CString::new(user_data_dir)?;
+        #[cfg(not(feature = "no_log_dir"))]
+        let log_dir = CString::new(log_dir)?;
+        let distribution_name = CString::new("Rime")?;
+        let distribution_code_name = CString::new("rime-ls")?;
+        let distribution_version = CString::new(env!("CARGO_PKG_VERSION"))?;
+
         let mut traits = rime_struct!(librime::RimeTraits);
 
         // set dirs
-        traits.shared_data_dir = CString::new(shared_data_dir)?.into_raw();
-        traits.user_data_dir = CString::new(user_data_dir)?.into_raw();
+        traits.shared_data_dir = shared_data_dir.as_ptr();
+        traits.user_data_dir = user_data_dir.as_ptr();
         #[cfg(not(feature = "no_log_dir"))]
         {
-            traits.log_dir = CString::new(log_dir)?.into_raw();
+            traits.log_dir = log_dir.as_ptr();
             traits.min_log_level = 2; // ERROR
         }
 
         // set name
-        traits.distribution_name = CString::new("Rime")?.into_raw();
-        traits.distribution_code_name = CString::new("rime-ls")?.into_raw();
-        traits.distribution_version = CString::new(env!("CARGO_PKG_VERSION"))?.into_raw();
-        // note: app_name is passed to glog as `const char*` without being copied to a std::string
+        traits.distribution_name = distribution_name.as_ptr();
+        traits.distribution_code_name = distribution_code_name.as_ptr();
+        traits.distribution_version = distribution_version.as_ptr();
+        // note: app_name is passed to glog as `const char*` without being copied
+        // to a std::string, hence it must be a static, NUL-terminated string
         traits.app_name = APP_NAME.as_ptr() as *mut c_char;
 
         let api = Self::get_api();
@@ -123,18 +137,19 @@ impl Rime {
         if rime_call!(api->start_maintenance, 0) != 0 {
             rime_call!(api->join_maintenance_thread);
         }
-        unsafe {
-            // retake pointer
-            let _ = CString::from_raw(traits.shared_data_dir as *mut c_char);
-            let _ = CString::from_raw(traits.user_data_dir as *mut c_char);
-            #[cfg(not(feature = "no_log_dir"))]
-            let _ = CString::from_raw(traits.log_dir as *mut c_char);
-            let _ = CString::from_raw(traits.distribution_name as *mut c_char);
-            let _ = CString::from_raw(traits.distribution_code_name as *mut c_char);
-            let _ = CString::from_raw(traits.distribution_version as *mut c_char);
-        }
+        // librime copies the strings it needs during setup/initialize, so it is
+        // safe to release them here (previously done via into_raw/from_raw)
+        drop((
+            shared_data_dir,
+            user_data_dir,
+            distribution_name,
+            distribution_code_name,
+            distribution_version,
+        ));
+        #[cfg(not(feature = "no_log_dir"))]
+        drop(log_dir);
 
-        RIME.set(Rime).unwrap();
+        RIME.set(Rime).map_err(|_| RimeError::AlreadyInitialized)?;
         Ok(())
     }
 
@@ -150,9 +165,16 @@ impl Rime {
         &self,
         context: &librime::RimeContext,
     ) -> Result<Vec<Candidate>, RimeError> {
-        let res = Mutex::new(Vec::new());
+        let candidates_ptr = context.menu.candidates;
+        if candidates_ptr.is_null() {
+            return Err(RimeError::GetCandidatesFailed);
+        }
+        let mut candidates = Vec::with_capacity(context.menu.num_candidates as usize);
         for i in 0..context.menu.num_candidates {
-            let candidate = unsafe { *context.menu.candidates.offset(i as isize) };
+            let candidate = unsafe { *candidates_ptr.offset(i as isize) };
+            if candidate.text.is_null() {
+                return Err(RimeError::GetCandidatesFailed);
+            }
             let text = unsafe {
                 CStr::from_ptr(candidate.text)
                     .to_str()
@@ -168,16 +190,17 @@ impl Rime {
                 })
             };
             let order = (i + 1) as usize;
-            res.lock()
-                .unwrap()
-                .push(Candidate::new(text, comment, Some(order)));
+            candidates.push(Candidate::new(text, comment, Some(order)));
         }
-        res.into_inner().map_err(|_| RimeError::GetCandidatesFailed)
+        Ok(candidates)
     }
 
     pub fn get_raw_input(&self, session_id: usize) -> Option<String> {
         let api = Self::get_api();
         let ptr = rime_call!(api->get_input, session_id);
+        if ptr.is_null() {
+            return None;
+        }
         unsafe { CStr::from_ptr(ptr).to_str().ok().map(|s| s.to_owned()) }
     }
 
@@ -208,6 +231,20 @@ impl Rime {
         }
     }
 
+    /// whether the session is still composing (i.e. has a non-empty preedit);
+    /// used to decide the `is_incomplete` flag of the completion list
+    fn is_composing(&self, context: &librime::RimeContext) -> bool {
+        if context.composition.preedit.is_null() {
+            return false;
+        }
+        unsafe {
+            CStr::from_ptr(context.composition.preedit)
+                .to_str()
+                .map(|s| !s.is_empty())
+                .unwrap_or(false)
+        }
+    }
+
     pub fn get_response_from_session(&self, session_id: usize) -> Result<RimeResponse, RimeError> {
         let api = Self::get_api();
         if rime_call!(api->find_session, session_id) == 0 {
@@ -222,24 +259,23 @@ impl Rime {
         let submitted = preedit
             .map(|s| RAW_RE.replace_all(s.as_ref(), "").to_string())
             .unwrap_or_default();
-        // note: must call it to consume commit text
-        let commit_text = self.get_commit_text(session_id);
+
         // get candidates vec
-        // if vec is empty but we have commit text, return it as the only candidate
-        // else return an empty vec
-        let mut is_incomplete = true;
-        let candidates = self.get_candidates_from_context(&context).map(|v| {
-            (!v.is_empty())
-                .then_some(v)
-                .or_else(|| {
-                    is_incomplete = false;
-                    commit_text.map(|text| vec![Candidate::from_text(text)])
-                })
-                .unwrap_or_default()
-        });
+        let is_incomplete = self.is_composing(&context);
+        let candidates_result = self.get_candidates_from_context(&context);
         // free context
         rime_call!(api->free_context, &mut context);
-        candidates.map(|candidates| RimeResponse {
+        let mut candidates = candidates_result?;
+        if candidates.is_empty() {
+            // the composition is finished: consume the commit text and return it
+            // as the only candidate. Only consume the commit when there are no
+            // candidates, otherwise a pending commit would be silently dropped.
+            let commit_text = self.get_commit_text(session_id);
+            if let Some(text) = commit_text {
+                candidates.push(Candidate::from_text(text));
+            }
+        }
+        Ok(RimeResponse {
             is_incomplete,
             submitted,
             candidates,
@@ -295,6 +331,7 @@ impl Rime {
 }
 
 #[test]
+#[ignore = "requires librime and a working rime-data directory on the system"]
 fn test_get_candidates() {
     let shared_data_dir = crate::utils::rime_default_shared_data_dir();
     let temp_dir = std::env::temp_dir();
@@ -310,7 +347,7 @@ fn test_get_candidates() {
         rime.process_key(session_id, key as i32);
     }
     let res = rime.get_response_from_session(session_id).unwrap();
-    assert!(res.candidates.len() != 0);
+    assert!(!res.candidates.is_empty());
     rime.destroy_session(session_id);
 
     // destroy

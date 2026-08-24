@@ -83,9 +83,11 @@ pub fn diff<'s>(old_text: &'s str, new_text: &'s str) -> DiffResult<'s> {
 }
 
 /// int to sort_text string, with leading zero, e.g., 1 -> "z0001"
+/// the width is derived from `count` (the actual number of items), so that
+/// lexicographic ordering matches numeric ordering for every item
 #[inline]
-pub fn build_order_to_sort_text(max_candidates: usize) -> impl Fn(usize) -> String {
-    let len = std::iter::successors(Some(max_candidates), |&n| (n >= 10).then_some(n / 10)).count();
+pub fn build_order_to_sort_text(count: usize) -> impl Fn(usize) -> String {
+    let len = std::iter::successors(Some(count), |&n| (n >= 10).then_some(n / 10)).count();
     move |n| format!("z{n:0len$}")
 }
 
@@ -111,14 +113,14 @@ pub fn option_string(s: String) -> Option<String> {
     }
 }
 
-/// expand tilde in path, panics when home dir does not exist
-pub fn expand_tilde(path: impl AsRef<Path>) -> PathBuf {
+/// expand tilde in path; returns None when the home directory does not exist
+pub fn expand_tilde(path: impl AsRef<Path>) -> Option<PathBuf> {
     if !path.as_ref().starts_with("~") {
-        return path.as_ref().into();
+        return Some(path.as_ref().into());
     }
-    let base_dirs = directories::BaseDirs::new().unwrap();
+    let base_dirs = directories::BaseDirs::new()?;
     let home_dir = base_dirs.home_dir();
-    home_dir.join(path.as_ref().strip_prefix("~").unwrap())
+    Some(home_dir.join(path.as_ref().strip_prefix("~").ok()?))
 }
 
 /// rime's default shared data dir
