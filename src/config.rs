@@ -215,7 +215,7 @@ fn test_apply_settings() {
     apply_setting!(config <- settings.show_filter_text_in_label);
     apply_setting!(config <- settings.show_order_in_label);
     // verify
-    assert_eq!(config.enabled, false);
+    assert!(!config.enabled);
     assert_eq!(config.max_candidates, 100);
     assert_eq!(
         config.paging_characters,
@@ -223,7 +223,7 @@ fn test_apply_settings() {
     );
     assert_eq!(config.trigger_characters, vec!["foo".to_string()]);
     assert_eq!(config.schema_trigger_character, String::from("bar"));
-    assert_eq!(config.show_filter_text_in_label, true);
-    assert_eq!(config.show_order_in_label, false);
+    assert!(config.show_filter_text_in_label);
+    assert!(!config.show_order_in_label);
     assert_eq!(test_val, vec!["foo".to_string()]);
 }

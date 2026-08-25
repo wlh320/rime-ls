@@ -36,20 +36,37 @@ impl Backend {
     }
 
     async fn init(&self) -> std::result::Result<(), RimeError> {
-        let config = self.config.read().await;
-        // expand tilde
-        let shared_data_dir = utils::expand_tilde(&config.shared_data_dir);
-        let user_data_dir = utils::expand_tilde(&config.user_data_dir);
-        let log_dir = utils::expand_tilde(&config.log_dir);
-        // to str
-        let shared_data_dir = shared_data_dir.to_str().unwrap();
-        let user_data_dir = user_data_dir.to_str().unwrap();
-        let log_dir = log_dir.to_str().unwrap();
+        // resolve paths and read the trigger characters without holding the
+        // config lock while compiling the regex (uniform lock order: config
+        // first, regex second — never hold both at the same time)
+        let (shared_data_dir, user_data_dir, log_dir, trigger_characters) = {
+            let config = self.config.read().await;
+            (
+                utils::expand_tilde(&config.shared_data_dir),
+                utils::expand_tilde(&config.user_data_dir),
+                utils::expand_tilde(&config.log_dir),
+                config.trigger_characters.clone(),
+            )
+        };
+        let shared_data_dir = shared_data_dir
+            .and_then(|p| p.to_str().map(ToOwned::to_owned))
+            .ok_or_else(|| RimeError::InvalidPath("shared_data_dir".to_string()))?;
+        let user_data_dir = user_data_dir
+            .and_then(|p| p.to_str().map(ToOwned::to_owned))
+            .ok_or_else(|| RimeError::InvalidPath("user_data_dir".to_string()))?;
+        let log_dir = log_dir
+            .and_then(|p| p.to_str().map(ToOwned::to_owned))
+            .ok_or_else(|| RimeError::InvalidPath("log_dir".to_string()))?;
         // compile regex
-        let trigger_characters = &config.trigger_characters;
-        self.compile_regex(trigger_characters).await;
-        // init rime
-        match Rime::init(shared_data_dir, user_data_dir, log_dir) {
+        self.compile_regex(&trigger_characters).await;
+        // init rime; the first run can take a long time (deployment), so keep
+        // the async executor free by running the blocking FFI on a worker thread
+        let result = tokio::task::spawn_blocking(move || {
+            Rime::init(&shared_data_dir, &user_data_dir, &log_dir)
+        })
+        .await
+        .map_err(|_| RimeError::TaskJoinFailed)?;
+        match result {
             Err(RimeError::AlreadyInitialized) => {
                 let info = "Use an initialized rime instance.";
                 self.client.log_message(MessageType::INFO, info).await;
@@ -66,10 +83,19 @@ impl Backend {
     }
 
     async fn compile_regex(&self, chars: &[String]) {
-        if !chars.is_empty() {
-            let mut regex = self.regex.write().await;
-            let pattern = format!(trigger_ptn!(), chars.join(""));
-            *regex = Regex::new(&pattern).unwrap();
+        if chars.is_empty() {
+            return;
+        }
+        // escape every trigger character: they are inserted into a regex
+        // character class, and unescaped metacharacters (e.g. `]`, `-`, `\`)
+        // would either break the pattern or change its meaning
+        let escaped: String = chars.iter().map(|c| regex::escape(c)).collect();
+        let pattern = format!(trigger_ptn!(), escaped);
+        match Regex::new(&pattern) {
+            Ok(re) => *self.regex.write().await = re,
+            Err(e) => {
+                self.client.log_message(MessageType::ERROR, e).await;
+            }
         }
     }
 
@@ -83,13 +109,18 @@ impl Backend {
             }
         };
 
+        // compile the trigger regex before taking the config write lock, so
+        // that the config lock is never held while waiting for the regex lock
+        // (see get_completions: uniform lock order, no nested locking)
+        if let Some(v) = &settings.trigger_characters {
+            self.compile_regex(v).await;
+        }
+
         let mut config = self.config.write().await;
         apply_setting!(config <- settings.enabled);
         apply_setting!(config <- settings.max_candidates);
         apply_setting!(config <- settings.paging_characters);
-        apply_setting!(config <- settings.trigger_characters, |v| {
-            self.compile_regex(&v).await;
-        });
+        apply_setting!(config <- settings.trigger_characters);
         apply_setting!(config <- settings.schema_trigger_character);
         apply_setting!(config <- settings.max_tokens);
         apply_setting!(config <- settings.always_incomplete);
@@ -148,16 +179,23 @@ impl Backend {
             utils::position_to_offset(&rope, line_pos, encoding)?
         };
         let curr_char = utils::position_to_offset(&rope, position, encoding)?;
+        // read the config first and drop the guard, then take the regex lock;
+        // never hold both locks at once (see apply_settings / init)
+        let (has_trigger, schema_trigger) = {
+            let config = self.config.read().await;
+            (
+                !config.trigger_characters.is_empty(),
+                config.schema_trigger_character.clone(),
+            )
+        };
         let new_input = {
             let re = self.regex.read().await;
-            let has_trigger = !self.config.read().await.trigger_characters.is_empty();
-            let schema_trigger = &self.config.read().await.schema_trigger_character;
             (curr_char <= rope.len_chars()).then(|| {
                 let slice = Cow::from(rope.slice(line_begin..curr_char));
                 if utils::need_to_check_trigger(has_trigger, &slice) {
-                    Input::new(&re, &slice, schema_trigger)
+                    Input::new(&re, &slice, &schema_trigger)
                 } else {
-                    Input::new(&NT_RE, &slice, schema_trigger)
+                    Input::new(&NT_RE, &slice, &schema_trigger)
                 }
             })??
         };
@@ -201,6 +239,16 @@ impl Backend {
             Err(e) => {
                 self.client.log_message(MessageType::ERROR, &e).await;
                 self.client.show_message(MessageType::ERROR, e).await;
+                // if this session was just created (first_input or a rebuild)
+                // and is not yet tracked by the state, destroy it now so it
+                // does not leak until shutdown
+                let tracked = last_state
+                    .as_ref()
+                    .map(|s| s.session_id() == session_id)
+                    .unwrap_or(false);
+                if !tracked {
+                    rime.destroy_session(session_id);
+                }
                 None?
             }
         };
@@ -218,16 +266,18 @@ impl Backend {
         drop(last_state);
 
         // convert candidates to completions
-        let (show_filter_text_in_label, show_order_in_label, preselect_enabled, max_candidates) = {
+        let (show_filter_text_in_label, show_order_in_label, preselect_enabled) = {
             let config = self.config.read().await;
             (
                 config.show_filter_text_in_label,
                 config.show_order_in_label,
                 config.preselect_first,
-                config.max_candidates,
             )
         };
-        let order_to_sort_text = utils::build_order_to_sort_text(max_candidates);
+        // derive the sort_text width from the actual number of candidates so
+        // that lexicographic ordering matches the numeric order even when the
+        // candidate count exceeds the (deprecated) max_candidates setting
+        let order_to_sort_text = utils::build_order_to_sort_text(candidates.len());
         let candidate_to_completion_item = |(i, c): (usize, Candidate)| -> CompletionItem {
             let text = match is_selecting {
                 true => submitted.clone() + &c.text,
@@ -235,7 +285,7 @@ impl Backend {
             };
             let mut label = match c.order {
                 0 => text.clone(),
-                _ if show_order_in_label => format!("{}. {}", c.order, &text),
+                _ if show_order_in_label => format!("{}. {}", c.order, text),
                 _ => text.clone(),
             };
             if show_filter_text_in_label {
@@ -380,9 +430,14 @@ impl LanguageServer for Backend {
                             rope.insert(s, &text);
                         }
                     }
-                    // full content change
+                    // full content change (e.g. undo/redo): the cached input
+                    // state is tied to the old content, drop it so the next
+                    // completion starts a fresh session
                     None => {
                         *rope = Rope::from(text);
+                        if let Some((_, Some(state))) = self.state.remove(url.as_str()) {
+                            Rime::global().destroy_session(state.session_id());
+                        }
                     }
                 }
             }
@@ -399,6 +454,11 @@ impl LanguageServer for Backend {
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
         let uri = params.text_document.uri.as_str();
         self.documents.remove(uri);
+        // destroy the rime session associated with this document, if any,
+        // otherwise sessions would leak for every closed document
+        if let Some((_, Some(state))) = self.state.remove(uri) {
+            Rime::global().destroy_session(state.session_id());
+        }
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
@@ -426,19 +486,26 @@ impl LanguageServer for Backend {
         match command {
             "rime-ls.toggle-rime" => {
                 self.notify_work_begin(token.clone(), command).await;
-                let mut config = self.config.write().await;
-                config.enabled = !config.enabled;
-                let status = match config.enabled {
+                let enabled = {
+                    let mut config = self.config.write().await;
+                    config.enabled = !config.enabled;
+                    config.enabled
+                };
+                let status = match enabled {
                     true => "Rime is ON",
                     false => "Rime is OFF",
                 };
                 self.notify_work_done(token.clone(), status).await;
                 // return a bool representing if rime-ls is enabled
-                return Ok(Some(Value::from(config.enabled)));
+                return Ok(Some(Value::from(enabled)));
             }
             "rime-ls.sync-user-data" => {
                 self.notify_work_begin(token.clone(), command).await;
-                Rime::global().sync_user_data();
+                // sync_user_data joins the maintenance thread and can block for
+                // a long time; run it off the async executor
+                tokio::task::spawn_blocking(|| Rime::global().sync_user_data())
+                    .await
+                    .map_err(|_| tower_lsp::jsonrpc::Error::internal_error())?;
                 self.notify_work_done(token.clone(), "Rime is Ready.").await;
             }
             _ => {

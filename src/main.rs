@@ -21,7 +21,7 @@ async fn run_tcp(stream: TcpStream) {
 }
 
 async fn run_tcp_forever(bind_addr: SocketAddr) -> tokio::io::Result<()> {
-    println!("Listening on: {}", &bind_addr);
+    println!("Listening on: {}", bind_addr);
     let listener = TcpListener::bind(bind_addr).await?;
     loop {
         let (stream, _) = listener.accept().await?;
@@ -64,7 +64,8 @@ async fn main() {
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.unwrap();
         println!("Ctrl-C pressed.");
-        tx.send(()).unwrap();
+        // ignore the error: the receiver may already be gone
+        let _ = tx.send(());
     });
     // run
     if let Err(e) = run(rx).await {
